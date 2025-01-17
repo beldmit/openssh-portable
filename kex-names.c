@@ -90,6 +90,19 @@ static const struct kexalg kexalgs[] = {
 	{ NULL, 0, -1, -1},
 };
 
+static int is_mlkem768_available()
+{
+	static int is_fetched = -1;
+
+	if (is_fetched == -1) {
+		EVP_KEM *mlkem768 = EVP_KEM_fetch(NULL, "mlkem768", NULL);
+		is_fetched = mlkem768 != NULL ? 1 : 0;
+		EVP_KEM_free(mlkem768);
+	}
+
+	return is_fetched;
+}
+
 char *
 kex_alg_list(char sep)
 {
@@ -98,6 +111,9 @@ kex_alg_list(char sep)
 	const struct kexalg *k;
 
 	for (k = kexalgs; k->name != NULL; k++) {
+		if (strcmp(k->name, KEX_MLKEM768X25519_SHA256) == 0
+			&& !is_mlkem768_available())
+			continue;
 		if (ret != NULL)
 			ret[rlen++] = sep;
 		nlen = strlen(k->name);
@@ -116,6 +132,10 @@ static const struct kexalg *
 kex_alg_by_name(const char *name)
 {
 	const struct kexalg *k;
+
+	if (strcmp(name, KEX_MLKEM768X25519_SHA256) == 0
+		&& !is_mlkem768_available())
+	return NULL;
 
 	for (k = kexalgs; k->name != NULL; k++) {
 		if (strcmp(k->name, name) == 0)
