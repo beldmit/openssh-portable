@@ -247,6 +247,8 @@ int	 sys_auth_passwd(struct ssh *, const char *);
 
 #if defined(KRB5) && !defined(HEIMDAL)
 krb5_error_code ssh_krb5_cc_new_unique(krb5_context, krb5_ccache *, int *);
+krb5_error_code ssh_krb5_get_k5login_directory(krb5_context ctx,
+	char **k5login_directory);
 #endif
 
 #endif /* AUTH_H */
