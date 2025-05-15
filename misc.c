@@ -2896,6 +2896,13 @@ subprocess(const char *tag, const char *command,
 			error("%s: dup2: %s", tag, strerror(errno));
 			_exit(1);
 		}
+#ifdef WITH_SELINUX
+		if (sshd_selinux_setup_env_variables() < 0) {
+			error ("failed to copy environment:  %s",
+			    strerror(errno));
+			_exit(127);
+		}
+#endif
 		if (env != NULL)
 			execve(av[0], av, env);
 		else
