@@ -168,8 +168,9 @@ ssh_gssapi_kex_mechs(gss_OID_set gss_supported, ssh_gssapi_check_fn *check,
 			enclen = __b64_ntop(digest,
 			    ssh_digest_bytes(SSH_DIGEST_MD5), encoded,
 			    ssh_digest_bytes(SSH_DIGEST_MD5) * 2);
-
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 			cp = strncpy(s, kex, strlen(kex));
+#pragma GCC diagnostic pop
 			for ((p = strsep(&cp, ",")); p && *p != '\0';
 				(p = strsep(&cp, ","))) {
 				if (sshbuf_len(buf) != 0 &&
