@@ -45,6 +45,8 @@
 #include <vis.h>
 #endif
 
+#include <openssl/fips.h>
+
 #include "openbsd-compat/sys-queue.h"
 
 #include "xmalloc.h"
@@ -262,36 +264,41 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr *hostaddr, u_short port,
 
 #if defined(GSSAPI) && defined(WITH_OPENSSL)
 	if (options.gss_keyex) {
-		/* Add the GSSAPI mechanisms currently supported on this
-		 * client to the key exchange algorithm proposal */
-		orig = myproposal[PROPOSAL_KEX_ALGS];
+		if (FIPS_mode()) {
+			logit("Disabling GSSAPIKeyExchange. Not usable in FIPS mode");
+			options.gss_keyex = 0;
+		} else {
+			/* Add the GSSAPI mechanisms currently supported on this
+			 * client to the key exchange algorithm proposal */
+			orig = myproposal[PROPOSAL_KEX_ALGS];
 
-		if (options.gss_server_identity) {
-			gss_host = xstrdup(options.gss_server_identity);
-		} else if (options.gss_trust_dns) {
-			gss_host = remote_hostname(ssh);
-			/* Fall back to specified host if we are using proxy command
-			 * and can not use DNS on that socket */
-			if (strcmp(gss_host, "UNKNOWN") == 0) {
-				free(gss_host);
+			if (options.gss_server_identity) {
+				gss_host = xstrdup(options.gss_server_identity);
+			} else if (options.gss_trust_dns) {
+				gss_host = remote_hostname(ssh);
+				/* Fall back to specified host if we are using proxy command
+				 * and can not use DNS on that socket */
+				if (strcmp(gss_host, "UNKNOWN") == 0) {
+					free(gss_host);
+					gss_host = xstrdup(host);
+				}
+			} else {
 				gss_host = xstrdup(host);
 			}
-		} else {
-			gss_host = xstrdup(host);
-		}
 
-		gss = ssh_gssapi_client_mechanisms(gss_host,
-		    options.gss_client_identity, options.gss_kex_algorithms);
-		if (gss) {
-			debug("Offering GSSAPI proposal: %s", gss);
-			xasprintf(&myproposal[PROPOSAL_KEX_ALGS],
-			    "%s,%s", gss, orig);
+			gss = ssh_gssapi_client_mechanisms(gss_host,
+			    options.gss_client_identity, options.gss_kex_algorithms);
+			if (gss) {
+				debug("Offering GSSAPI proposal: %s", gss);
+				xasprintf(&myproposal[PROPOSAL_KEX_ALGS],
+				    "%s,%s", gss, orig);
 
-			/* If we've got GSSAPI algorithms, then we also support the
-			 * 'null' hostkey, as a last resort */
-			orig = myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS];
-			xasprintf(&myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS],
-			    "%s,null", orig);
+				/* If we've got GSSAPI algorithms, then we also support the
+				 * 'null' hostkey, as a last resort */
+				orig = myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS];
+				xasprintf(&myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS],
+				    "%s,null", orig);
+			}
 		}
 	}
 #endif

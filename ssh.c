@@ -77,6 +77,7 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #endif
+#include <openssl/fips.h>
 #include "openbsd-compat/openssl-compat.h"
 #include "openbsd-compat/sys-queue.h"
 
@@ -1581,6 +1582,10 @@ main(int ac, char **av)
 	if (config_test) {
 		dump_client_config(&options, host);
 		exit(0);
+	}
+
+	if (FIPS_mode()) {
+		debug("FIPS mode initialized");
 	}
 
 	/* Expand SecurityKeyProvider if it refers to an environment variable */
