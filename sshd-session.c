@@ -1342,6 +1342,27 @@ main(int ac, char **av)
 
 	check_ip_options(ssh);
 
+	{
+		struct sshkey *rsakey = NULL;
+		rsakey = get_hostkey_private_by_type(KEY_RSA, 0, ssh);
+		if (rsakey == NULL)
+			rsakey = get_hostkey_private_by_type(KEY_RSA_CERT, 0, ssh);
+
+		if (rsakey != NULL) {
+		    size_t sign_size = 0;
+		    u_char *tmp = NULL;
+		    u_char data[] = "Test SHA1 vector";
+		    int res;
+
+		    res = sshkey_sign(rsakey, &tmp, &sign_size, data, sizeof(data), NULL, NULL, NULL, 0);
+		    free(tmp);
+		    if (res == SSH_ERR_LIBCRYPTO_ERROR) {
+			verbose_f("SHA1 in signatures is disabled for RSA keys");
+		    	ssh->compat |= SSH_RH_RSASIGSHA;
+		    }
+		}
+	}
+
 	/* Prepare the channels layer */
 	channel_init_channels(ssh);
 	channel_set_af(ssh, options.address_family);
