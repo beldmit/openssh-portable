@@ -267,7 +267,7 @@ ssh_gssapi_krb5_cmdok(krb5_principal principal, const char *name,
 /* This writes out any forwarded credentials from the structure populated
  * during userauth. Called after we have setuid to the user */
 
-static void
+static int
 ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 {
 	krb5_ccache ccache;
@@ -276,14 +276,15 @@ ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 	OM_uint32 maj_status, min_status;
 	const char *new_ccname, *new_cctype;
 	const char *errmsg;
+	int set_env = 0;
 
 	if (client->creds == NULL) {
 		debug("No credentials stored");
-		return;
+		return 0;
 	}
 
 	if (ssh_gssapi_krb5_init() == 0)
-		return;
+		return 0;
 
 #ifdef HEIMDAL
 # ifdef HAVE_KRB5_CC_NEW_UNIQUE
@@ -297,14 +298,14 @@ ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 		krb5_get_err_text(krb_context, problem));
 # endif
 		krb5_free_error_message(krb_context, errmsg);
-		return;
+		return 0;
 	}
 #else
-	if ((problem = ssh_krb5_cc_gen(krb_context, &ccache))) {
+	if ((problem = ssh_krb5_cc_new_unique(krb_context, &ccache, &set_env)) != 0) {
 		errmsg = krb5_get_error_message(krb_context, problem);
-		logit("ssh_krb5_cc_gen(): %.100s", errmsg);
+		logit("ssh_krb5_cc_new_unique(): %.100s", errmsg);
 		krb5_free_error_message(krb_context, errmsg);
-		return;
+		return 0;
 	}
 #endif	/* #ifdef HEIMDAL */
 
@@ -313,7 +314,7 @@ ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 		errmsg = krb5_get_error_message(krb_context, problem);
 		logit("krb5_parse_name(): %.100s", errmsg);
 		krb5_free_error_message(krb_context, errmsg);
-		return;
+		return 0;
 	}
 
 	if ((problem = krb5_cc_initialize(krb_context, ccache, princ))) {
@@ -322,7 +323,7 @@ ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 		krb5_free_error_message(krb_context, errmsg);
 		krb5_free_principal(krb_context, princ);
 		krb5_cc_destroy(krb_context, ccache);
-		return;
+		return 0;
 	}
 
 	krb5_free_principal(krb_context, princ);
@@ -331,32 +332,21 @@ ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 	    client->creds, ccache))) {
 		logit("gss_krb5_copy_ccache() failed");
 		krb5_cc_destroy(krb_context, ccache);
-		return;
+		return 0;
 	}
 
 	new_cctype = krb5_cc_get_type(krb_context, ccache);
 	new_ccname = krb5_cc_get_name(krb_context, ccache);
-
-	client->store.envvar = "KRB5CCNAME";
-#ifdef USE_CCAPI
-	xasprintf(&client->store.envval, "API:%s", new_ccname);
-	client->store.filename = NULL;
-#else
-	if (new_ccname[0] == ':')
-		new_ccname++;
 	xasprintf(&client->store.envval, "%s:%s", new_cctype, new_ccname);
-	if (strcmp(new_cctype, "DIR") == 0) {
-		char *p;
-		p = strrchr(client->store.envval, '/');
-		if (p)
-			*p = '\0';
+
+	if (set_env) {
+		client->store.envvar = "KRB5CCNAME";
 	}
 	if ((strcmp(new_cctype, "FILE") == 0) || (strcmp(new_cctype, "DIR") == 0))
 		client->store.filename = xstrdup(new_ccname);
-#endif
 
 #ifdef USE_PAM
-	if (options.use_pam)
+	if (options.use_pam && set_env)
 		do_pam_putenv(client->store.envvar, client->store.envval);
 #endif
 
@@ -364,7 +354,7 @@ ssh_gssapi_krb5_storecreds(ssh_gssapi_client *client)
 
 	client->store.data = krb_context;
 
-	return;
+	return set_env;
 }
 
 int
