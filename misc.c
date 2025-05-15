@@ -806,6 +806,7 @@ char *
 colon(char *cp)
 {
 	int flag = 0;
+	int start = 1;
 
 	if (*cp == ':')		/* Leading colon is part of file name. */
 		return NULL;
@@ -821,6 +822,13 @@ colon(char *cp)
 			return (cp);
 		if (*cp == '/')
 			return NULL;
+		if (start) {
+		/* Slash on beginning or after dots only denotes file name. */
+			if (*cp == '/')
+				return (0);
+			if (*cp != '.')
+				start = 0;
+		}
 	}
 	return NULL;
 }
