@@ -1383,7 +1383,7 @@ main(int ac, char **av)
 #ifdef GSSAPI
 	if (options.gss_authentication) {
 		temporarily_use_uid(authctxt->pw);
-		ssh_gssapi_storecreds();
+		authctxt->krb5_set_env = ssh_gssapi_storecreds();
 		restore_uid();
 	}
 #endif
