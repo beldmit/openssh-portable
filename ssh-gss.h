@@ -116,7 +116,7 @@ typedef struct ssh_gssapi_mech_struct {
 	int (*dochild) (ssh_gssapi_client *);
 	int (*userok) (ssh_gssapi_client *, char *);
 	int (*localname) (ssh_gssapi_client *, char **);
-	void (*storecreds) (ssh_gssapi_client *);
+	int (*storecreds) (ssh_gssapi_client *);
 	int (*updatecreds) (ssh_gssapi_ccache *, ssh_gssapi_client *);
 } ssh_gssapi_mech;
 
@@ -186,7 +186,7 @@ int ssh_gssapi_userok(char *name, struct passwd *, int kex);
 OM_uint32 ssh_gssapi_checkmic(Gssctxt *, gss_buffer_t, gss_buffer_t);
 void ssh_gssapi_do_child(char ***, u_int *);
 void ssh_gssapi_cleanup_creds(void);
-void ssh_gssapi_storecreds(void);
+int ssh_gssapi_storecreds(void);
 const char *ssh_gssapi_displayname(void);
 
 char *ssh_gssapi_server_mechanisms(void);
