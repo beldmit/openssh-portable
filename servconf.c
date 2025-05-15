@@ -2293,8 +2293,9 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 		if (*activep && *charptr == NULL) {
 			*charptr = tilde_expand_filename(arg, getuid());
 			/* increase optional counter */
-			if (intptr != NULL)
-				*intptr = *intptr + 1;
+			/* DEAD CODE intptr is still NULL ;)
+  			 if (intptr != NULL)
+				*intptr = *intptr + 1; */
 		}
 		break;
 
