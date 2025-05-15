@@ -3261,6 +3261,7 @@ if test "x$openssl" = "xyes" ; then
 		HMAC_CTX_init \
 		RSA_generate_key_ex \
 		RSA_get_default_method \
+		EVP_KDF_CTX_new \
 	])
 
 	# LibreSSL/OpenSSL API differences
