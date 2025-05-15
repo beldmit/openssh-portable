@@ -788,6 +788,7 @@ static struct {
 	{ "casignaturealgorithms", sCASignatureAlgorithms, SSHCFG_ALL },
 	{ "securitykeyprovider", sSecurityKeyProvider, SSHCFG_GLOBAL },
 	{ "requiredrsasize", sRequiredRSASize, SSHCFG_ALL },
+	{ "rsaminsize", sRequiredRSASize, SSHCFG_ALL }, /* alias */
 	{ "channeltimeout", sChannelTimeout, SSHCFG_ALL },
 	{ "unusedconnectiontimeout", sUnusedConnectionTimeout, SSHCFG_ALL },
 	{ "sshdsessionpath", sSshdSessionPath, SSHCFG_GLOBAL },
