@@ -1437,6 +1437,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 #endif /* USE_AFS */
 #endif /* KRB5 */
 
+	case sKerberosUniqueCCache:
+		intptr = &options->kerberos_unique_ccache;
+		goto parse_flag;
+
 #ifdef GSSAPI
 	case sGSSAPIAuthentication:
 		intptr = &options->gss_authentication;
@@ -4238,6 +4242,7 @@ dump_config(ServerOptions *o)
 # ifdef USE_AFS
 	dump_cfg_fmtint(sKerberosGetAFSToken, o->kerberos_get_afs_token);
 # endif
+	dump_cfg_fmtint(sKerberosUniqueCCache, o->kerberos_unique_ccache);
 #endif
 #ifdef GSSAPI
 	dump_cfg_fmtint(sGSSAPIAuthentication, o->gss_authentication);
