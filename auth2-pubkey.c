@@ -204,9 +204,16 @@ userauth_pubkey(struct ssh *ssh, const char *method)
 			goto done;
 		}
 		/* reconstruct packet */
-		xasprintf(&userstyle, "%s%s%s", authctxt->user,
+		xasprintf(&userstyle, "%s%s%s%s%s", authctxt->user,
 		    authctxt->style ? ":" : "",
-		    authctxt->style ? authctxt->style : "");
+		    authctxt->style ? authctxt->style : "",
+#ifdef WITH_SELINUX
+		    authctxt->role ? "/" : "",
+		    authctxt->role ? authctxt->role : ""
+#else
+		    "", ""
+#endif
+		    );
 		if ((r = sshbuf_put_u8(b, SSH2_MSG_USERAUTH_REQUEST)) != 0 ||
 		    (r = sshbuf_put_cstring(b, userstyle)) != 0 ||
 		    (r = sshbuf_put_cstring(b, authctxt->service)) != 0 ||
