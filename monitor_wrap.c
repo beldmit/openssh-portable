@@ -1426,4 +1426,50 @@ mm_audit_destroy_sensitive_data(struct ssh *ssh, const char *fp, pid_t pid, uid_
 	mm_request_send(pmonitor->m_recvfd, MONITOR_REQ_AUDIT_SERVER_KEY_FREE, m);
 	sshbuf_free(m);
 }
+
+int mm_forward_audit_messages(int fdin)
+{
+	u_char buf[4];
+	u_int blen, msg_len;
+	struct sshbuf *m;
+	int r, ret = 0;
+
+	debug3_f("entering");
+	if ((m = sshbuf_new()) == NULL)
+ 		fatal_f("sshbuf_new failed");
+	do {
+		blen = atomicio(read, fdin, buf, sizeof(buf));
+		if (blen == 0) /* closed pipe */
+			break;
+		if (blen != sizeof(buf)) {
+			error_f("Failed to read the buffer from child");
+			ret = -1;
+			break;
+		}
+
+		msg_len = get_u32(buf);
+		if (msg_len > 256 * 1024)
+			fatal_f("read: bad msg_len %d", msg_len);
+		sshbuf_reset(m);
+		if ((r = sshbuf_reserve(m, msg_len, NULL)) != 0)
+			fatal_fr(r, "buffer error");
+		if (atomicio(read, fdin, sshbuf_mutable_ptr(m), msg_len) != msg_len) {
+			error_f("Failed to read the the buffer content from the child");
+			ret = -1;
+			break;
+		}
+		if (atomicio(vwrite, pmonitor->m_recvfd, buf, blen) != blen || 
+		    atomicio(vwrite, pmonitor->m_recvfd, sshbuf_mutable_ptr(m), msg_len) != msg_len) {
+			error_f("Failed to write the message to the monitor");
+			ret = -1;
+			break;
+		}
+	} while (1);
+	sshbuf_free(m);
+	return ret;
+}
+void mm_set_monitor_pipe(int fd)
+{
+	pmonitor->m_recvfd = fd;
+}
 #endif /* SSH_AUDIT_EVENTS */

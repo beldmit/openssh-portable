@@ -161,6 +161,10 @@ static Session *sessions = NULL;
 login_cap_t *lc;
 #endif
 
+#ifdef SSH_AUDIT_EVENTS
+int paudit[2];
+#endif
+
 static int is_child = 0;
 static int in_chroot = 0;
 static int have_dev_log = 1;
@@ -358,6 +362,8 @@ xauth_valid_string(const char *s)
 	return 1;
 }
 
+void child_destory_sensitive_data(struct ssh *ssh);
+
 #define USE_PIPES 1
 /*
  * This is called to fork and execute a command when we have no tty.  This
@@ -481,6 +487,8 @@ do_exec_no_pty(struct ssh *ssh, Session *s, const char *command)
 		close(err[0]);
 #endif
 
+		child_destory_sensitive_data(ssh);
+
 		/* Do processing for the child (exec command etc). */
 		do_child(ssh, s, command);
 		/* NOTREACHED */
@@ -594,6 +602,9 @@ do_exec_pty(struct ssh *ssh, Session *s, const char *command)
 
 		/* Close the extra descriptor for the pseudo tty. */
 		close(ttyfd);
+
+		/* Do this early, so we will not block large MOTDs */
+		child_destory_sensitive_data(ssh);
 
 		/* record login, etc. similar to login(1) */
 #ifndef HAVE_OSF_SIA
@@ -729,6 +740,8 @@ do_exec(struct ssh *ssh, Session *s, const char *command)
 	}
 	if (s->command != NULL && s->ptyfd == -1)
 		s->command_handle = mm_audit_run_command(ssh, s->command);
+	if (pipe(paudit) < 0)
+		fatal("pipe: %s", strerror(errno));
 #endif
 	if (s->ttyfd != -1)
 		ret = do_exec_pty(ssh, s, command);
@@ -743,6 +756,20 @@ do_exec(struct ssh *ssh, Session *s, const char *command)
 	 * multiple copies of the login messages.
 	 */
 	sshbuf_reset(loginmsg);
+
+#ifdef SSH_AUDIT_EVENTS
+	close(paudit[1]);
+	if (ret == 0) {
+		/*
+		 * Read the audit messages from forked child and send them
+		 * back to monitor. We don't want to communicate directly,
+		 * because the messages might get mixed up.
+		 * Continue after the pipe gets closed (all messages sent).
+		 */
+		ret = mm_forward_audit_messages(paudit[0]);
+	}
+	close(paudit[0]);
+#endif /* SSH_AUDIT_EVENTS */
 
 	return ret;
 }
@@ -1490,6 +1517,33 @@ child_close_fds(struct ssh *ssh)
 	log_redirect_stderr_to(NULL);
 }
 
+void
+child_destory_sensitive_data(struct ssh *ssh)
+{
+#ifdef SSH_AUDIT_EVENTS
+	int pparent = paudit[1];
+	close(paudit[0]);
+	/* Hack the monitor pipe to avoid race condition with parent */
+	mm_set_monitor_pipe(pparent);
+#endif
+
+	/* remove hostkey from the child's memory */
+	/* FIXME beldmit destroy_sensitive_data(ssh); */
+	/*
+	 * We can audit this, because we hacked the pipe to direct the
+	 * messages over postauth child. But this message requires answer
+	 * which we can't do using one-way pipe.
+	 */
+	packet_destroy_all(ssh, 0, 1);
+	/* XXX this will clean the rest but should not audit anymore */
+	/* packet_clear_keys(ssh); */
+
+#ifdef SSH_AUDIT_EVENTS
+	/* Notify parent that we are done */
+	close(pparent);
+#endif
+}
+
 /*
  * Performs common processing for the child, such as setting up the
  * environment, closing extra file descriptors, setting the user and group
@@ -1506,13 +1560,6 @@ do_child(struct ssh *ssh, Session *s, const char *command)
 	int r = 0;
 
 	sshpkt_fmt_connection_id(ssh, remote_id, sizeof(remote_id));
-
-	/* remove keys from memory */
-	destroy_sensitive_data(ssh);
-	ssh_packet_clear_keys(ssh);
-	/* Don't audit this - both us and the parent would be talking to the
-	   monitor over a single socket, with no synchronization. */
-	packet_destroy_all(ssh, 0, 1);
 
 	/* Force a password change */
 	if (s->authctxt->force_pwchange) {
