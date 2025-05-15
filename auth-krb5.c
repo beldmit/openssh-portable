@@ -55,6 +55,21 @@
 
 extern ServerOptions	 options;
 
+int
+ssh_krb5_kuserok(krb5_context krb5_ctx, krb5_principal krb5_user, const char *client,
+                 int k5login_exists)
+{
+	if (options.use_kuserok || !k5login_exists)
+		return krb5_kuserok(krb5_ctx, krb5_user, client);
+	else {
+		char kuser[65];
+
+		if (krb5_aname_to_localname(krb5_ctx, krb5_user, sizeof(kuser), kuser))
+			return 0;
+		return strcmp(kuser, client) == 0;
+	}
+}
+
 static int
 krb5_init(void *context)
 {
@@ -158,8 +173,9 @@ auth_krb5_password(Authctxt *authctxt, const char *password)
 	if (problem)
 		goto out;
 
-	if (!krb5_kuserok(authctxt->krb5_ctx, authctxt->krb5_user,
-	    authctxt->pw->pw_name)) {
+	/* Use !options.use_kuserok here to make ssh_krb5_kuserok() not
+	 * depend on the existance of .k5login */
+	if (!ssh_krb5_kuserok(authctxt->krb5_ctx, authctxt->krb5_user, authctxt->pw->pw_name, !options.use_kuserok)) {
 		problem = -1;
 		goto out;
 	}
