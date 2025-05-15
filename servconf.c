@@ -140,6 +140,7 @@ initialize_server_options(ServerOptions *options)
 	options->gss_store_rekey = -1;
 	options->gss_kex_algorithms = NULL;
 	options->use_kuserok = -1;
+	options->enable_k5users = -1;
 	options->password_authentication = -1;
 	options->kbd_interactive_authentication = -1;
 	options->permit_empty_passwd = -1;
@@ -396,6 +397,8 @@ fill_default_server_options(ServerOptions *options)
 #endif
 	if (options->use_kuserok == -1)
 		options->use_kuserok = 1;
+	if (options->enable_k5users == -1)
+		options->enable_k5users = 0;
 	if (options->password_authentication == -1)
 		options->password_authentication = 1;
 	if (options->kbd_interactive_authentication == -1)
@@ -582,7 +585,7 @@ typedef enum {
 	sHostKeyAlgorithms, sPerSourceMaxStartups, sPerSourceNetBlockSize,
 	sPerSourcePenalties, sPerSourcePenaltyExemptList,
 	sClientAliveInterval, sClientAliveCountMax, sAuthorizedKeysFile,
-	sGssAuthentication, sGssCleanupCreds, sGssDelegateCreds, sGssStrictAcceptor,
+	sGssAuthentication, sGssCleanupCreds, sGssDelegateCreds, sGssEnablek5users, sGssStrictAcceptor,
 	sGssKeyEx, sGssKexAlgorithms, sGssStoreRekey,
 	sAcceptEnv, sSetEnv, sPermitTunnel,
 	sMatch, sPermitOpen, sPermitListen, sForceCommand, sChrootDirectory,
@@ -679,6 +682,7 @@ static struct {
 	{ "gssapikeyexchange", sGssKeyEx, SSHCFG_GLOBAL },
 	{ "gssapistorecredentialsonrekey", sGssStoreRekey, SSHCFG_GLOBAL },
 	{ "gssapikexalgorithms", sGssKexAlgorithms, SSHCFG_GLOBAL },
+	{ "gssapienablek5users", sGssEnablek5users, SSHCFG_ALL },
 #else
 	{ "gssapiauthentication", sUnsupported, SSHCFG_ALL },
 	{ "gssapicleanupcredentials", sUnsupported, SSHCFG_GLOBAL },
@@ -688,6 +692,7 @@ static struct {
 	{ "gssapikeyexchange", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapistorecredentialsonrekey", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapikexalgorithms", sUnsupported, SSHCFG_GLOBAL },
+	{ "gssapienablek5users", sUnsupported, SSHCFG_ALL },
 #endif
 	{ "gssusesessionccache", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapiusesessioncredcache", sUnsupported, SSHCFG_GLOBAL },
@@ -2472,6 +2477,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 		intptr = &options->use_kuserok;
 		goto parse_flag;
 
+	case sGssEnablek5users:
+		intptr = &options->enable_k5users;
+		goto parse_flag;
+
 	case sMatch:
 		if (cmdline)
 			fatal("Match directive not supported as a command-line "
@@ -3040,6 +3049,7 @@ copy_set_server_options(ServerOptions *dst, ServerOptions *src, int preauth)
 	M_CP_INTOPT(ip_qos_interactive);
 	M_CP_INTOPT(ip_qos_bulk);
 	M_CP_INTOPT(use_kuserok);
+	M_CP_INTOPT(enable_k5users);
 	M_CP_INTOPT(rekey_limit);
 	M_CP_INTOPT(rekey_interval);
 	M_CP_INTOPT(log_level);
@@ -3350,6 +3360,7 @@ dump_config(ServerOptions *o)
 # endif
 	dump_cfg_fmtint(sKerberosUniqueCCache, o->kerberos_unique_ccache);
 	dump_cfg_fmtint(sKerberosUseKuserok, o->use_kuserok);
+	dump_cfg_fmtint(sGssEnablek5users, o->enable_k5users);
 #endif
 #ifdef GSSAPI
 	dump_cfg_fmtint(sGssAuthentication, o->gss_authentication);
