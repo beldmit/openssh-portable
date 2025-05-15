@@ -465,5 +465,21 @@ ssh_krb5_cc_new_unique(krb5_context ctx, krb5_ccache *ccache, int *need_environm
 		return (krb5_cc_resolve(ctx, ccname, ccache));
 	}
 }
+
+/*
+ * Reads  k5login_directory  option from the  krb5.conf
+ */
+krb5_error_code
+ssh_krb5_get_k5login_directory(krb5_context ctx, char **k5login_directory) {
+	profile_t p;
+	int ret = 0;
+
+	ret = krb5_get_profile(ctx, &p);
+	if (ret)
+		return ret;
+
+	return profile_get_string(p, "libdefaults", "k5login_directory", NULL, NULL,
+		k5login_directory);
+}
 #endif /* !HEIMDAL */
 #endif /* KRB5 */
