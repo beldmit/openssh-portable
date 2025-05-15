@@ -1581,6 +1581,7 @@ sanitize_pkcs11_provider(const char *provider)
 
 		if (pkcs11_uri_parse(provider, uri) != 0) {
 			error("Failed to parse PKCS#11 URI");
+			pkcs11_uri_cleanup(uri);
 			return NULL;
 		}
 		/* validate also provider from URI */

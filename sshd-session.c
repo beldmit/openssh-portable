@@ -462,8 +462,10 @@ privsep_preauth(struct ssh *ssh)
 
 		privsep_preauth_child(ssh);
 		setproctitle("%s", "[net]");
-		if (box != NULL)
+		if (box != NULL) {
 			ssh_sandbox_child(box);
+			free(box);
+		}
 
 		return 0;
 	}
@@ -1627,8 +1629,11 @@ do_ssh2_kex(struct ssh *ssh)
 
 	if (newstr)
 		myproposal[PROPOSAL_KEX_ALGS] = newstr;
-	else
+	else {
 		fatal("No supported key exchange algorithms");
+		free(gss);
+	     }
+	     /* coverity[leaked_storage: FALSE]*/
 	}
 #endif
 

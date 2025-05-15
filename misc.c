@@ -1556,6 +1556,8 @@ sanitise_stdfd(void)
 	}
 	if (nullfd > STDERR_FILENO)
 		close(nullfd);
+	/* coverity[leaked_handle : FALSE]*/
+	/* coverity[leaked_handle : FALSE]*/
 }
 
 char *
@@ -2748,6 +2750,7 @@ stdfd_devnull(int do_stdin, int do_stdout, int do_stderr)
 	}
 	if (devnull > STDERR_FILENO)
 		close(devnull);
+	/* coverity[leaked_handle : FALSE]*/
 	return ret;
 }
 
