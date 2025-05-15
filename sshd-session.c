@@ -301,6 +301,10 @@ privsep_preauth_child(void)
 	/* Demote the private keys to public keys. */
 	demote_sensitive_data();
 
+#ifdef WITH_SELINUX
+	ssh_selinux_change_context("sshd_net_t");
+#endif
+
 	/* Demote the child */
 	if (privsep_chroot) {
 		/* Change our root directory */
@@ -401,7 +405,7 @@ privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
 	 * fd passing, as AFAIK PTY allocation on this platform doesn't require
 	 * special privileges to begin with.
 	 */
-#if defined(DISABLE_FD_PASSING) && !defined(HAVE_CYGWIN)
+#if defined(DISABLE_FD_PASSING) && !defined(HAVE_CYGWIN) && !defined(WITH_SELINUX)
 	skip_privdrop = 1;
 #endif
 
