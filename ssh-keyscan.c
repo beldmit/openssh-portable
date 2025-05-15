@@ -810,6 +810,9 @@ main(int argc, char **argv)
 	if (maxfd > fdlim_get(0))
 		fdlim_set(maxfd);
 	fdcon = xcalloc(maxfd, sizeof(con));
+ 
+	signal(SIGPIPE, SIG_IGN);
+
 	read_wait = xcalloc(maxfd, sizeof(struct pollfd));
 	for (j = 0; j < maxfd; j++)
 		read_wait[j].fd = -1;
