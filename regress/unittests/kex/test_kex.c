@@ -97,7 +97,8 @@ do_kex_with_key(char *kex, int keytype, int bits)
 	memcpy(kex_params.proposal, myproposal, sizeof(myproposal));
 	if (kex != NULL)
 		kex_params.proposal[PROPOSAL_KEX_ALGS] = kex;
-	keyname = strdup(sshkey_ssh_name(private));
+	keyname = (strcmp(sshkey_ssh_name(private), "ssh-rsa")) ?
+		strdup(sshkey_ssh_name(private)) : strdup("rsa-sha2-256");
 	ASSERT_PTR_NE(keyname, NULL);
 	kex_params.proposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = keyname;
 	ASSERT_INT_EQ(ssh_init(&client, 0, &kex_params), 0);
