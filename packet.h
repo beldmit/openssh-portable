@@ -207,4 +207,5 @@ void	sshpkt_fmt_connection_id(struct ssh *ssh, char *s, size_t l);
 const u_char	*sshpkt_ptr(struct ssh *, size_t *lenp);
 char	*connection_info_message(struct ssh *ssh);
 
+void	 packet_destroy_all(struct ssh *, int, int);
 #endif				/* PACKET_H */
