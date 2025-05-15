@@ -188,7 +188,7 @@ privsep_child_demote(void)
 		fatal_f("ssh_sandbox_init failed");
 #endif
 #ifdef WITH_SELINUX
-	ssh_selinux_change_context("sshd_net_t");
+	sshd_selinux_change_privsep_preauth_context();
 #endif
 
 	/* Demote the child */
