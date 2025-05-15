@@ -157,7 +157,7 @@ userauth_hostbased(struct ssh *ssh, const char *method)
 	authenticated = 0;
 	if (mm_hostbased_key_allowed(ssh, authctxt->pw, cuser,
 	    chost, key) &&
-	    mm_sshkey_verify(key, sig, slen,
+	    mm_hostbased_key_verify(ssh, key, sig, slen,
 	    sshbuf_ptr(b), sshbuf_len(b), pkalg, ssh->compat, NULL) == 0)
 		authenticated = 1;
 
@@ -172,6 +172,20 @@ done:
 	free(chost);
 	free(sig);
 	return authenticated;
+}
+
+int
+hostbased_key_verify(struct ssh *ssh, const struct sshkey *key, const u_char *sig,
+    size_t slen, const u_char *data, size_t datalen, const char *pkalg, u_int compat,
+    struct sshkey_sig_details **detailsp)
+{
+	int rv;
+
+	rv = sshkey_verify(key, sig, slen, data, datalen, pkalg, compat, detailsp);
+#ifdef SSH_AUDIT_EVENTS
+	audit_key(ssh, 0, &rv, key);
+#endif
+	return rv;
 }
 
 /* return 1 if given hostkey is allowed */

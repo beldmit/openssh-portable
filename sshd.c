@@ -213,6 +213,15 @@ close_listen_socks(void)
 	num_listen_socks = 0;
 }
 
+/*
+ * Is this process listening for clients (i.e. not specific to any specific
+ * client connection?)
+ */
+int listening_for_clients(void)
+{
+	return num_listen_socks > 0;
+}
+
 /* Allocate and initialise the children array */
 static void
 child_alloc(void)
@@ -958,6 +967,7 @@ server_accept_loop(int *sock_in, int *sock_out, int *newsock, int *config_s,
 		if (received_sigterm) {
 			logit("Received signal %d; terminating.",
 			    (int) received_sigterm);
+			/* destroy_sensitive_data(ssh, 0); FIXME */
 			close_listen_socks();
 			if (options.pid_file != NULL)
 				unlink(options.pid_file);

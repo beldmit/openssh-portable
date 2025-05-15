@@ -66,6 +66,7 @@
 #include "sshbuf.h"
 #include "digest.h"
 #include "xmalloc.h"
+#include "audit.h"
 
 /* prototype */
 static int kex_choose_conf(struct ssh *, uint32_t seq);
@@ -820,12 +821,16 @@ kex_start_rekex(struct ssh *ssh)
 }
 
 static int
-choose_enc(struct sshenc *enc, char *client, char *server)
+choose_enc(struct ssh *ssh, struct sshenc *enc, char *client, char *server)
 {
 	char *name = match_list(client, server, NULL);
 
-	if (name == NULL)
+	if (name == NULL) {
+#ifdef SSH_AUDIT_EVENTS
+		audit_unsupported(ssh, SSH_AUDIT_UNSUPPORTED_CIPHER);
+#endif
 		return SSH_ERR_NO_CIPHER_ALG_MATCH;
+	}
 	if ((enc->cipher = cipher_by_name(name)) == NULL) {
 		error_f("unsupported cipher %s", name);
 		free(name);
@@ -846,8 +851,12 @@ choose_mac(struct ssh *ssh, struct sshmac *mac, char *client, char *server)
 {
 	char *name = match_list(client, server, NULL);
 
-	if (name == NULL)
+	if (name == NULL) {
+#ifdef SSH_AUDIT_EVENTS
+		audit_unsupported(ssh, SSH_AUDIT_UNSUPPORTED_MAC);
+#endif
 		return SSH_ERR_NO_MAC_ALG_MATCH;
+	}
 	if (mac_setup(mac, name) < 0) {
 		error_f("unsupported MAC %s", name);
 		free(name);
@@ -860,12 +869,16 @@ choose_mac(struct ssh *ssh, struct sshmac *mac, char *client, char *server)
 }
 
 static int
-choose_comp(struct sshcomp *comp, char *client, char *server)
+choose_comp(struct ssh *ssh, struct sshcomp *comp, char *client, char *server)
 {
 	char *name = match_list(client, server, NULL);
 
-	if (name == NULL)
+	if (name == NULL) {
+#ifdef SSH_AUDIT_EVENTS
+		audit_unsupported(ssh, SSH_AUDIT_UNSUPPORTED_COMPRESSION);
+#endif
 		return SSH_ERR_NO_COMPRESS_ALG_MATCH;
+	}
 #ifdef WITH_ZLIB
 	if (strcmp(name, "zlib@openssh.com") == 0) {
 		comp->type = COMP_DELAYED;
@@ -1029,7 +1042,7 @@ kex_choose_conf(struct ssh *ssh, uint32_t seq)
 		nenc  = ctos ? PROPOSAL_ENC_ALGS_CTOS  : PROPOSAL_ENC_ALGS_STOC;
 		nmac  = ctos ? PROPOSAL_MAC_ALGS_CTOS  : PROPOSAL_MAC_ALGS_STOC;
 		ncomp = ctos ? PROPOSAL_COMP_ALGS_CTOS : PROPOSAL_COMP_ALGS_STOC;
-		if ((r = choose_enc(&newkeys->enc, cprop[nenc],
+		if ((r = choose_enc(ssh, &newkeys->enc, cprop[nenc],
 		    sprop[nenc])) != 0) {
 			kex->failed_choice = peer[nenc];
 			peer[nenc] = NULL;
@@ -1044,7 +1057,7 @@ kex_choose_conf(struct ssh *ssh, uint32_t seq)
 			peer[nmac] = NULL;
 			goto out;
 		}
-		if ((r = choose_comp(&newkeys->comp, cprop[ncomp],
+		if ((r = choose_comp(ssh, &newkeys->comp, cprop[ncomp],
 		    sprop[ncomp])) != 0) {
 			kex->failed_choice = peer[ncomp];
 			peer[ncomp] = NULL;
@@ -1067,6 +1080,10 @@ kex_choose_conf(struct ssh *ssh, uint32_t seq)
 		dh_need = MAXIMUM(dh_need, newkeys->enc.block_size);
 		dh_need = MAXIMUM(dh_need, newkeys->enc.iv_len);
 		dh_need = MAXIMUM(dh_need, newkeys->mac.key_len);
+		debug("kex: %s need=%d dh_need=%d", kex->name, need, dh_need);
+#ifdef SSH_AUDIT_EVENTS
+		audit_kex(ssh, mode, newkeys->enc.name, newkeys->mac.name, newkeys->comp.name, kex->name);
+#endif
 	}
 	/* XXX need runden? */
 	kex->we_need = need;
@@ -1335,6 +1352,36 @@ dump_digest(const char *msg, const u_char *digest, int len)
 	sshbuf_dump_data(digest, len, stderr);
 }
 #endif
+
+static void
+enc_destroy(struct sshenc *enc)
+{
+	if (enc == NULL)
+		return;
+
+	if (enc->key) {
+		memset(enc->key, 0, enc->key_len);
+		free(enc->key);
+	}
+
+	if (enc->iv) {
+		memset(enc->iv,  0, enc->iv_len);
+		free(enc->iv);
+	}
+
+	memset(enc, 0, sizeof(*enc));
+}
+
+void
+newkeys_destroy(struct newkeys *newkeys)
+{
+	if (newkeys == NULL)
+		return;
+
+	enc_destroy(&newkeys->enc);
+	mac_destroy(&newkeys->mac);
+	memset(&newkeys->comp, 0, sizeof(newkeys->comp));
+}
 
 /*
  * Send a plaintext error message to the peer, suffixed by \r\n.
