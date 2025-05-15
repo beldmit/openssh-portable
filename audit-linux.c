@@ -52,7 +52,7 @@ extern u_int utmp_len;
 const char *audit_username(void);
 
 static void
-linux_audit_user_logxxx(int uid, const char *username,
+linux_audit_user_logxxx(int uid, const char *username, const char *hostname,
     const char *ip, const char *ttyn, int success, int event)
 {
 	int audit_fd, rc, saved_errno;
@@ -66,7 +66,7 @@ linux_audit_user_logxxx(int uid, const char *username,
 	}
 	rc = audit_log_acct_message(audit_fd, event,
 	    NULL, "login", username ? username : "(unknown)",
-	    username == NULL ? uid : -1, NULL, ip, ttyn, success);
+	    username == NULL ? uid : -1, hostname, ip, ttyn, success);
 	saved_errno = errno;
 	close(audit_fd);
 
@@ -137,10 +137,12 @@ fatal_report:
 }
 
 int
-audit_keyusage(struct ssh *ssh, int host_user, char *fp, int rv)
+audit_keyusage(struct ssh *ssh, int host_user, const char *key_fp, const struct sshkey_cert *cert, const char *issuer_fp, int rv)
 {
 	char buf[AUDIT_LOG_SIZE];
 	int audit_fd, rc, saved_errno;
+	const char *rip;
+	u_int i;
 
 	audit_fd = audit_open();
 	if (audit_fd < 0) {
@@ -150,14 +152,44 @@ audit_keyusage(struct ssh *ssh, int host_user, char *fp, int rv)
 		else
 			return 0; /* Must prevent login */
 	}
+	rip = ssh_remote_ipaddr(ssh);
 	snprintf(buf, sizeof(buf), "%s_auth grantors=auth-key", host_user ? "pubkey" : "hostbased");
 	rc = audit_log_acct_message(audit_fd, AUDIT_USER_AUTH, NULL,
-		buf, audit_username(), -1, NULL, ssh_remote_ipaddr(ssh), NULL, rv);
+		buf, audit_username(), -1, NULL, rip, NULL, rv);
 	if ((rc < 0) && ((rc != -1) || (getuid() == 0)))
 		goto out;
-	snprintf(buf, sizeof(buf), "op=negotiate kind=auth-key fp=%s", fp);
+	snprintf(buf, sizeof(buf), "op=negotiate kind=auth-key fp=%s", key_fp);
 	rc = audit_log_user_message(audit_fd, AUDIT_CRYPTO_KEY_USER, buf, NULL,
-		ssh_remote_ipaddr(ssh), NULL, rv);
+		rip, NULL, rv);
+	if ((rc < 0) && ((rc != -1) || (getuid() == 0)))
+		goto out;
+
+	if (cert) {
+		char *pbuf;
+
+		pbuf = audit_encode_nv_string("key_id", cert->key_id, 0);
+		if (pbuf == NULL)
+			goto out;
+		snprintf(buf, sizeof(buf), "cert %s cert_serial=%llu cert_issuer_alg=\"%s\" cert_issuer_fp=\"%s\"",
+			pbuf, (unsigned long long)cert->serial, sshkey_type(cert->signature_key), issuer_fp);
+		free(pbuf);
+		rc = audit_log_acct_message(audit_fd, AUDIT_USER_AUTH, NULL,
+			buf, audit_username(), -1, NULL, rip, NULL, rv);
+		if ((rc < 0) && ((rc != -1) || (getuid() == 0)))
+			goto out;
+
+		for (i = 0; cert->principals != NULL && i < cert->nprincipals; i++) {
+			pbuf = audit_encode_nv_string("cert_principal", cert->principals[i], 0);
+			if (pbuf == NULL)
+				goto out;
+			snprintf(buf, sizeof(buf), "principal %s", pbuf);
+			free(pbuf);
+			rc = audit_log_acct_message(audit_fd, AUDIT_USER_AUTH, NULL,
+				buf, audit_username(), -1, NULL, rip, NULL, rv);
+			if ((rc < 0) && ((rc != -1) || (getuid() == 0)))
+				goto out;
+		}
+	}
 out:
 	saved_errno = errno;
 	audit_close(audit_fd);
@@ -179,26 +211,34 @@ audit_connection_from(const char *host, int port)
 int
 audit_run_command(struct ssh *ssh, const char *command)
 {
+	char * audit_hostname = options.use_dns ? remote_hostname(ssh) : NULL;
 	if (!user_login_count++)
 		linux_audit_user_logxxx(the_authctxt->pw->pw_uid, NULL,
+		    audit_hostname,
 		    ssh_remote_ipaddr(ssh),
 		    "ssh", 1, AUDIT_USER_LOGIN);
 	linux_audit_user_logxxx(the_authctxt->pw->pw_uid, NULL,
+	    audit_hostname,
 	    ssh_remote_ipaddr(ssh),
 	    "ssh", 1, AUDIT_USER_START);
+	free(audit_hostname);
 	return 0;
 }
 
 void
 audit_end_command(struct ssh *ssh, int handle, const char *command)
 {
+	char * audit_hostname = options.use_dns ? remote_hostname(ssh) : NULL;
 	linux_audit_user_logxxx(the_authctxt->pw->pw_uid, NULL,
+	    audit_hostname,
 	    ssh_remote_ipaddr(ssh),
 	    "ssh", 1, AUDIT_USER_END);
 	if (user_login_count && !--user_login_count)
 		linux_audit_user_logxxx(the_authctxt->pw->pw_uid, NULL,
+		    audit_hostname,
 		    ssh_remote_ipaddr(ssh),
 		    "ssh", 1, AUDIT_USER_LOGOUT);
+	free(audit_hostname);
 }
 
 void
@@ -211,31 +251,41 @@ void
 audit_session_open(struct logininfo *li)
 {
 	if (!user_login_count++)
-		linux_audit_user_logxxx(li->uid, NULL, li->hostname,
+		linux_audit_user_logxxx(li->uid, NULL,
+		    options.use_dns ? li->hostname : NULL,
+		    options.use_dns ? NULL : li->hostname,
 		    li->line, 1, AUDIT_USER_LOGIN);
-	linux_audit_user_logxxx(li->uid, NULL, li->hostname,
+	linux_audit_user_logxxx(li->uid, NULL,
+	    options.use_dns ? li->hostname : NULL,
+	    options.use_dns ? NULL : li->hostname,
 	    li->line, 1, AUDIT_USER_START);
 }
 
 void
 audit_session_close(struct logininfo *li)
 {
-	linux_audit_user_logxxx(li->uid, NULL, li->hostname,
+	linux_audit_user_logxxx(li->uid, NULL,
+	    options.use_dns ? li->hostname : NULL,
+	    options.use_dns ? NULL : li->hostname,
 	    li->line, 1, AUDIT_USER_END);
 	if (user_login_count && !--user_login_count)
-		linux_audit_user_logxxx(li->uid, NULL, li->hostname,
+		linux_audit_user_logxxx(li->uid, NULL,
+		    options.use_dns ? li->hostname : NULL,
+		    options.use_dns ? NULL : li->hostname,
 		    li->line, 1, AUDIT_USER_LOGOUT);
 }
 
 void
 audit_event(struct ssh *ssh, ssh_audit_event_t event)
 {
+	char * audit_hostname = options.use_dns ? remote_hostname(ssh) : NULL;
+
 	switch(event) {
 	case SSH_NOLOGIN:
 	case SSH_LOGIN_ROOT_DENIED:
 		linux_audit_user_auth(-1, audit_username(),
 			ssh_remote_ipaddr(ssh), "ssh", 0, event);
-		linux_audit_user_logxxx(-1, audit_username(),
+		linux_audit_user_logxxx(-1, audit_username(), audit_hostname,
 			ssh_remote_ipaddr(ssh), "ssh", 0, AUDIT_USER_LOGIN);
 		break;
 	case SSH_AUTH_FAIL_PASSWD:
@@ -255,9 +305,11 @@ audit_event(struct ssh *ssh, ssh_audit_event_t event)
 		if (user_login_count) {
 			while (user_login_count--)
 				linux_audit_user_logxxx(the_authctxt->pw->pw_uid, NULL,
+				    audit_hostname,
 				    ssh_remote_ipaddr(ssh),
 				    "ssh", 1, AUDIT_USER_END);
 			linux_audit_user_logxxx(the_authctxt->pw->pw_uid, NULL,
+			    audit_hostname,
 			    ssh_remote_ipaddr(ssh),
 			    "ssh", 1, AUDIT_USER_LOGOUT);
 		}
@@ -266,12 +318,14 @@ audit_event(struct ssh *ssh, ssh_audit_event_t event)
 	case SSH_CONNECTION_ABANDON:
 	case SSH_INVALID_USER:
 		linux_audit_user_logxxx(-1, audit_username(),
+			audit_hostname,
 			ssh_remote_ipaddr(ssh), "ssh", 0, AUDIT_USER_LOGIN);
 		break;
 	default:
 		debug("%s: unhandled event %d", __func__, event);
 		break;
 	}
+	free(audit_hostname);
 }
 
 void
