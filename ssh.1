@@ -539,9 +539,15 @@ For full details of the options listed below, and their possible values, see
 .It ForwardX11Timeout
 .It ForwardX11Trusted
 .It GSSAPIAuthentication
+.It GSSAPIKeyExchange
+.It GSSAPIClientIdentity
 .It GSSAPIDelegateCredentials
 .It GatewayPorts
 .It GlobalKnownHostsFile
+.It GSSAPIKexAlgorithms
+.It GSSAPIRenewalForcesRekey
+.It GSSAPIServerIdentity
+.It GSSAPITrustDns
 .It HashKnownHosts
 .It Host
 .It HostKeyAlgorithms
@@ -636,6 +642,8 @@ flag),
 (supported message integrity codes),
 .Ar kex
 (key exchange algorithms),
+.Ar kex-gss
+(GSSAPI key exchange algorithms),
 .Ar key
 (key types),
 .Ar key-ca-sign

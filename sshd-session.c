@@ -616,8 +616,8 @@ notify_hostkeys(struct ssh *ssh)
 	}
 	debug3_f("sent %u hostkeys", nkeys);
 	if (nkeys == 0)
-		fatal_f("no hostkeys");
-	if ((r = sshpkt_send(ssh)) != 0)
+		debug3_f("no hostkeys");
+	else if ((r = sshpkt_send(ssh)) != 0)
 		sshpkt_fatal(ssh, r, "%s: send", __func__);
 	sshbuf_free(buf);
 }
@@ -1159,8 +1159,9 @@ main(int ac, char **av)
 			break;
 		}
 	}
-	if (!have_key)
-		fatal("internal error: monitor received no hostkeys");
+	/* The GSSAPI key exchange can run without a host key */
+	if (!have_key && !options.gss_keyex)
+		fatal("internal error: monitor received no hostkeys and GSS KEX is not configured");
 
 	/* Ensure that umask disallows at least group and world write */
 	new_umask = umask(0077) | 0022;

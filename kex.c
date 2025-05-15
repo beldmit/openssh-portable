@@ -297,17 +297,37 @@ static int
 kex_compose_ext_info_server(struct ssh *ssh, struct sshbuf *m)
 {
 	int r;
+	int have_key = 0;
+	int ext_count = 2;
+
+#ifdef GSSAPI
+	/*
+	 * Currently GSS KEX don't provide host keys as optional message, so
+	 * no reasons to announce the publickey-hostbound extension
+	 */
+	if (ssh->kex->gss == NULL)
+	    have_key = 1;
+#endif
+	ext_count += have_key;
+
 
 	if (ssh->kex->server_sig_algs == NULL &&
 	    (ssh->kex->server_sig_algs = sshkey_alg_list(0, 1, 1, ',')) == NULL)
 		return SSH_ERR_ALLOC_FAIL;
-	if ((r = sshbuf_put_u32(m, 3)) != 0 ||
+	if ((r = sshbuf_put_u32(m, ext_count)) != 0 ||
 	    (r = sshbuf_put_cstring(m, "server-sig-algs")) != 0 ||
-	    (r = sshbuf_put_cstring(m, ssh->kex->server_sig_algs)) != 0 ||
-	    (r = sshbuf_put_cstring(m,
-	    "publickey-hostbound@openssh.com")) != 0 ||
-	    (r = sshbuf_put_cstring(m, "0")) != 0 ||
-	    (r = sshbuf_put_cstring(m, "ping@openssh.com")) != 0 ||
+	    (r = sshbuf_put_cstring(m, ssh->kex->server_sig_algs)) != 0) {
+		error_fr(r, "compose");
+		return r;
+	}
+	if (have_key) {
+	    if ((r = sshbuf_put_cstring(m, "publickey-hostbound@openssh.com")) != 0 ||
+	        (r = sshbuf_put_cstring(m, "0")) != 0) {
+		    error_fr(r, "compose");
+		    return r;
+		}
+	}
+	if ((r = sshbuf_put_cstring(m, "ping@openssh.com")) != 0 ||
 	    (r = sshbuf_put_cstring(m, "0")) != 0) {
 		error_fr(r, "compose");
 		return r;
@@ -737,6 +757,9 @@ kex_free(struct kex *kex)
 	sshbuf_free(kex->server_version);
 	sshbuf_free(kex->client_pub);
 	sshbuf_free(kex->session_id);
+#ifdef GSSAPI
+	free(kex->gss_host);
+#endif /* GSSAPI */
 	sshbuf_free(kex->initial_sig);
 	sshkey_free(kex->initial_hostkey);
 	free(kex->failed_choice);
