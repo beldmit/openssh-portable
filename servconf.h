@@ -316,14 +316,21 @@ SSHCONF_UNSUPPORTED_INT(kerberos_get_afs_token, KerberosGetAFSToken, SSHCFG_GLOB
 #define SSHD_CONFIG_ENTRIES_GSS \
 SSHCONF_INTFLAG(gss_authentication, GSSAPIAuthentication, SSHCFG_ALL, 0, SSHCFG_COPY_MATCH) \
 SSHCONF_INTFLAG(gss_cleanup_creds, GSSAPICleanupCredentials, SSHCFG_GLOBAL, 1, SSHCFG_COPY_NONE) \
+SSHCONF_ALIAS(GSSAPICleanupCreds, GSSAPICleanupCredentials, SSHCFG_GLOBAL) \
 SSHCONF_INTFLAG(gss_deleg_creds, GSSAPIDelegateCredentials, SSHCFG_GLOBAL, 1, SSHCFG_COPY_NONE) \
-SSHCONF_INTFLAG(gss_strict_acceptor, GSSAPIStrictAcceptorCheck, SSHCFG_GLOBAL, 1, SSHCFG_COPY_NONE)
+SSHCONF_INTFLAG(gss_strict_acceptor, GSSAPIStrictAcceptorCheck, SSHCFG_GLOBAL, 1, SSHCFG_COPY_NONE) \
+SSHCONF_INTFLAG(gss_keyex, GSSAPIKeyExchange, SSHCFG_GLOBAL, 0, SSHCFG_COPY_NONE) \
+SSHCONF_INTFLAG(gss_store_rekey, GSSAPIStoreCredentialsOnRekey, SSHCFG_GLOBAL, 0, SSHCFG_COPY_NONE) \
+SSHCONF_STRING(gss_kex_algorithms, GSSAPIKexAlgorithms, SSHCFG_GLOBAL, SSHCFG_COPY_NONE)
 #else /* GSSAPI */
 #define SSHD_CONFIG_ENTRIES_GSS \
 SSHCONF_UNSUPPORTED_INT(gss_authentication, GSSAPIAuthentication, SSHCFG_ALL) \
 SSHCONF_UNSUPPORTED_INT(gss_cleanup_creds, GSSAPICleanupCredentials, SSHCFG_GLOBAL) \
 SSHCONF_UNSUPPORTED_INT(gss_deleg_creds, GSSAPIDelegateCredentials, SSHCFG_GLOBAL) \
-SSHCONF_UNSUPPORTED_INT(gss_strict_acceptor, GSSAPIStrictAcceptorCheck, SSHCFG_GLOBAL)
+SSHCONF_UNSUPPORTED_INT(gss_strict_acceptor, GSSAPIStrictAcceptorCheck, SSHCFG_GLOBAL) \
+SSHCONF_UNSUPPORTED_INT(gss_keyex, GSSAPIKeyExchange, SSHCFG_GLOBAL) \
+SSHCONF_UNSUPPORTED_INT(gss_store_rekey, GSSAPIStoreCredentialsOnRekey, SSHCFG_GLOBAL) \
+SSHCONF_UNSUPPORTED_STRING(gss_kex_algorithms, GSSAPIKexAlgorithms, SSHCFG_GLOBAL)
 #endif /* GSSAPI */
 
 #define SSHD_CONFIG_ENTRIES \
