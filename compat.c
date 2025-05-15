@@ -42,6 +42,7 @@ void
 compat_banner(struct ssh *ssh, const char *version)
 {
 	int i;
+	int forbid_ssh_rsa = 0;
 	static struct {
 		char	*pat;
 		int	bugs;
@@ -125,16 +126,21 @@ compat_banner(struct ssh *ssh, const char *version)
 	};
 
 	/* process table, return first match */
+	forbid_ssh_rsa = (ssh->compat & SSH_RH_RSASIGSHA);
 	ssh->compat = 0;
 	for (i = 0; check[i].pat; i++) {
 		if (match_pattern_list(version, check[i].pat, 0) == 1) {
 			debug_f("match: %s pat %s compat 0x%08x",
 			    version, check[i].pat, check[i].bugs);
 			ssh->compat = check[i].bugs;
+	if (forbid_ssh_rsa)
+		ssh->compat |= SSH_RH_RSASIGSHA;
 			return;
 		}
 	}
 	debug_f("no match: %s", version);
+	if (forbid_ssh_rsa)
+		ssh->compat |= SSH_RH_RSASIGSHA;
 }
 
 /* Always returns pointer to allocated memory, caller must free. */

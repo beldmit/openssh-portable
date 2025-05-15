@@ -747,11 +747,12 @@ mm_answer_sign(struct ssh *ssh, int sock, struct sshbuf *m)
 	struct sshkey *pubkey, *key;
 	struct sshbuf *sigbuf = NULL;
 	u_char *p = NULL, *signature = NULL;
-	char *alg = NULL;
-	size_t datlen, siglen;
-	int r, is_proof = 0, keyid;
-	u_int compat;
+	char *alg = NULL, *effective_alg;
+	size_t datlen, siglen, alglen;
+	int r, is_proof = 0;
+	u_int keyid, compat;
 	const char proof_req[] = "hostkeys-prove-00@openssh.com";
+	const char safe_rsa[]  = "rsa-sha2-256";
 
 	debug3_f("entering");
 
@@ -809,18 +810,30 @@ mm_answer_sign(struct ssh *ssh, int sock, struct sshbuf *m)
 	}
 
 	if ((key = get_hostkey_by_index(keyid)) != NULL) {
-		if ((r = sshkey_sign(key, &signature, &siglen, p, datlen, alg,
+		if (ssh->compat & SSH_RH_RSASIGSHA && strcmp(alg, "ssh-rsa") == 0
+				&& (sshkey_type_plain(key->type) == KEY_RSA)) {
+			effective_alg = safe_rsa;
+		} else {
+			effective_alg = alg;
+		}
+		if ((r = sshkey_sign(key, &signature, &siglen, p, datlen, effective_alg,
 		    options.sk_provider, NULL, compat)) != 0)
 			fatal_fr(r, "sign");
 	} else if ((key = get_hostkey_public_by_index(keyid, ssh)) != NULL &&
 	    auth_sock > 0) {
+		if (ssh->compat & SSH_RH_RSASIGSHA && strcmp(alg, "ssh-rsa") == 0
+				&& (sshkey_type_plain(key->type) == KEY_RSA)) {
+			effective_alg = safe_rsa;
+		} else {
+			effective_alg = alg;
+		}
 		if ((r = ssh_agent_sign(auth_sock, key, &signature, &siglen,
-		    p, datlen, alg, compat)) != 0)
+		    p, datlen, effective_alg, compat)) != 0)
 			fatal_fr(r, "agent sign");
 	} else
 		fatal_f("no hostkey from index %d", keyid);
 
-	debug3_f("%s %s signature len=%zu", alg,
+	debug3_f("%s (effective: %s) %s signature len=%zu", alg, effective_alg,
 	    is_proof ? "hostkey proof" : "KEX", siglen);
 
 	sshbuf_reset(m);

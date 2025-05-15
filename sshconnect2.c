@@ -1434,6 +1434,14 @@ identity_sign(struct identity *id, u_char **sigp, size_t *lenp,
 			retried = 1;
 			goto retry_pin;
 		}
+		if ((r == SSH_ERR_LIBCRYPTO_ERROR) && strcmp("ssh-rsa", alg)) {
+			char rsa_safe_alg[] = "rsa-sha2-512";
+			debug3_f("trying to fallback to algorithm %s", rsa_safe_alg);
+
+			if ((r = sshkey_sign(sign_key, sigp, lenp, data, datalen,
+			rsa_safe_alg, options.sk_provider, pin, compat)) != 0)
+				debug_fr(r, "sshkey_sign - RSA fallback");
+		}
 		goto out;
 	}
 
