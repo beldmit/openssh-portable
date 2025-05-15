@@ -58,6 +58,7 @@
 #ifdef WITH_OPENSSL
 #include <openssl/bn.h>
 #include <openssl/evp.h>
+#include <openssl/fips.h>
 #endif
 
 #include "xmalloc.h"
@@ -859,10 +860,14 @@ do_ssh2_kex(struct ssh *ssh)
 	if (strlen(myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS]) == 0)
 		orig = NULL;
 
-	if (options.gss_keyex)
-		gss = ssh_gssapi_server_mechanisms();
-	else
-		gss = NULL;
+	if (options.gss_keyex) {
+		if (FIPS_mode()) {
+			logit("Disabling GSSAPIKeyExchange. Not usable in FIPS mode");
+			options.gss_keyex = 0;
+		} else {
+			gss = ssh_gssapi_server_mechanisms();
+		}
+	}
 
 	if (gss && orig)
 		xasprintf(&newstr, "%s,%s", gss, orig);
