@@ -3648,6 +3648,7 @@ AC_ARG_WITH([pam],
 			PAM_MSG="yes"
 
 			SSHDLIBS="$SSHDLIBS -lpam"
+			KEYCATLIBS="$KEYCATLIBS -lpam"
 			AC_DEFINE([USE_PAM], [1],
 				[Define if you want to enable PAM support])
 
@@ -3658,6 +3659,7 @@ AC_ARG_WITH([pam],
 					;;
 				*)
 					SSHDLIBS="$SSHDLIBS -ldl"
+					KEYCATLIBS="$KEYCATLIBS -ldl"
 					;;
 				esac
 			fi
@@ -4883,6 +4885,7 @@ AC_ARG_WITH([selinux],
 	fi ]
 )
 AC_SUBST([SSHDLIBS])
+AC_SUBST([KEYCATLIBS])
 
 # Check whether user wants Kerberos 5 support
 KRB5_MSG="no"
@@ -5893,6 +5896,9 @@ echo "        +for FIDO2: ${LIBFIDO2}"
 fi
 if test ! -z "${SSHDLIBS}"; then
 echo "         +for sshd: ${SSHDLIBS}"
+fi
+if test ! -z "${KEYCATLIBS}"; then
+echo "   +for ssh-keycat: ${KEYCATLIBS}"
 fi
 
 echo ""

@@ -24,6 +24,7 @@ void ssh_selinux_change_context(const char *);
 void ssh_selinux_setfscreatecon(const char *);
 
 void sshd_selinux_setup_exec_context(char *);
+int sshd_selinux_setup_env_variables(void);
 #endif
 
 #ifdef LINUX_OOM_ADJUST
