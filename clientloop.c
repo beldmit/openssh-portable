@@ -115,6 +115,10 @@
 #include "ssherr.h"
 #include "hostfile.h"
 
+#ifdef GSSAPI
+#include "ssh-gss.h"
+#endif
+
 /* Permitted RSA signature algorithms for UpdateHostkeys proofs */
 #define HOSTKEY_PROOF_RSA_ALGS	"rsa-sha2-512,rsa-sha2-256"
 
@@ -1590,6 +1594,14 @@ client_loop(struct ssh *ssh, int have_pty, int escape_char_arg,
 
 		/* Do channel operations. */
 		channel_after_poll(ssh, pfd, npfd_active);
+
+#ifdef GSSAPI
+			if (options.gss_renewal_rekey &&
+			    ssh_gssapi_credentials_updated(NULL)) {
+				debug("credentials updated - forcing rekey");
+				need_rekeying = 1;
+			}
+#endif
 
 		/* Buffer input from the connection.  */
 		if (conn_in_ready)
