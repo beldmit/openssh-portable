@@ -144,8 +144,27 @@ ssh_gssapi_k5login_exists()
 {
 	char file[MAXPATHLEN];
 	struct passwd *pw = the_authctxt->pw;
+	char *k5login_directory = NULL;
+	int ret = 0;
 
-	snprintf(file, sizeof(file), "%s/.k5login", pw->pw_dir);
+	ret = ssh_krb5_get_k5login_directory(krb_context, &k5login_directory);
+	debug3_f("k5login_directory = %s (rv=%d)", k5login_directory, ret);
+	if (k5login_directory == NULL || ret != 0) {
+		/* If not set, the library will look for  k5login
+		 * files in the user's home directory, with the filename  .k5login.
+		 */
+		snprintf(file, sizeof(file), "%s/.k5login", pw->pw_dir);
+	} else {
+		/* If set, the library will look for a local user's k5login file
+		 * within the named directory, with a filename corresponding to the
+		 * local username.
+		 */
+		snprintf(file, sizeof(file), "%s%s%s", k5login_directory, 
+			k5login_directory[strlen(k5login_directory)-1] != '/' ? "/" : "",
+			pw->pw_name);
+	}
+	debug_f("Checking existence of file %s", file);
+
 	return access(file, F_OK) == 0;
 }
 
