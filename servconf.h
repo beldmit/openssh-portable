@@ -151,6 +151,7 @@ typedef struct {
 						 * authenticated with Kerberos. */
 	int     kerberos_unique_ccache;		/* If true, the acquired ticket will
 						 * be stored in per-session ccache */
+	int	use_kuserok;
 	int     gss_authentication;	/* If true, permit GSSAPI authentication */
 	int     gss_keyex;		/* If true, permit GSSAPI key exchange */
 	int     gss_cleanup_creds;	/* If true, destroy cred cache on logout */
