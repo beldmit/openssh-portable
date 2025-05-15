@@ -62,6 +62,7 @@
 #include "myproposal.h"
 #include "digest.h"
 #include "version.h"
+#include "ssh-gss.h"
 
 #define SSHD_CONFIG_BLOB_VERSION	1
 
@@ -337,6 +338,10 @@ fill_default_server_options(ServerOptions *options)
 		options->log_facility = SYSLOG_FACILITY_AUTH;
 	if (options->log_level == SYSLOG_LEVEL_NOT_SET)
 		options->log_level = SYSLOG_LEVEL_INFO;
+#ifdef GSSAPI
+	if (options->gss_kex_algorithms == NULL)
+		options->gss_kex_algorithms = strdup(GSS_KEX_DEFAULT_KEX);
+#endif
 	if (options->permit_user_env == -1) {
 		options->permit_user_env = 0;
 		options->permit_user_env_allowlist = NULL;
@@ -1437,6 +1442,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 		intptr = &options->gss_authentication;
 		goto parse_flag;
 
+	case sGSSAPIKeyExchange:
+		intptr = &options->gss_keyex;
+		goto parse_flag;
+
 	case sGSSAPICleanupCredentials:
 		intptr = &options->gss_cleanup_creds;
 		goto parse_flag;
@@ -1448,6 +1457,22 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 	case sGSSAPIStrictAcceptorCheck:
 		intptr = &options->gss_strict_acceptor;
 		goto parse_flag;
+
+	case sGSSAPIStoreCredentialsOnRekey:
+		intptr = &options->gss_store_rekey;
+		goto parse_flag;
+
+	case sGSSAPIKexAlgorithms:
+		arg = argv_next(&ac, &av);
+		if (!arg || *arg == '\0')
+			fatal("%.200s line %d: Missing argument.",
+			    filename, linenum);
+		if (!kex_gss_names_valid(arg))
+			fatal("%.200s line %d: Bad GSSAPI KexAlgorithms '%s'.",
+			    filename, linenum, arg ? arg : "<NONE>");
+		if (*activep && options->gss_kex_algorithms == NULL)
+			options->gss_kex_algorithms = xstrdup(arg);
+		break;
 #endif /* GSSAPI */
 
 	case sPasswordAuthentication:
@@ -4218,7 +4243,10 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sGSSAPIAuthentication, o->gss_authentication);
 	dump_cfg_fmtint(sGSSAPICleanupCredentials, o->gss_cleanup_creds);
 	dump_cfg_fmtint(sGSSAPIDelegateCredentials, o->gss_deleg_creds);
+	dump_cfg_fmtint(sGSSAPIKeyExchange, o->gss_keyex);
 	dump_cfg_fmtint(sGSSAPIStrictAcceptorCheck, o->gss_strict_acceptor);
+	dump_cfg_fmtint(sGSSAPIStoreCredentialsOnRekey, o->gss_store_rekey);
+	dump_cfg_string(sGSSAPIKexAlgorithms, o->gss_kex_algorithms);
 #endif
 	dump_cfg_fmtint(sPasswordAuthentication, o->password_authentication);
 	dump_cfg_fmtint(sKbdInteractiveAuthentication,
