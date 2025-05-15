@@ -48,10 +48,6 @@
 #include <unistd.h>
 #endif
 
-extern ServerOptions options;
-extern Authctxt *the_authctxt;
-extern int inetd_flag;
-
 /* Wrapper around is_selinux_enabled() to log its return value once only */
 int
 sshd_selinux_enabled(void)
@@ -221,7 +217,8 @@ get_user_context(const char *sename, const char *role, const char *lvl,
 }
 
 static void
-ssh_selinux_get_role_level(char **role, const char **level)
+ssh_selinux_get_role_level(char **role, const char **level,
+    Authctxt *the_authctxt)
 {
 	*role = NULL;
 	*level = NULL;
@@ -239,8 +236,8 @@ ssh_selinux_get_role_level(char **role, const char **level)
 
 /* Return the default security context for the given username */
 static int
-sshd_selinux_getctxbyname(char *pwname,
-	security_context_t *default_sc, security_context_t *user_sc)
+sshd_selinux_getctxbyname(char *pwname, security_context_t *default_sc,
+    security_context_t *user_sc, int inetd, Authctxt *the_authctxt)
 {
 	char *sename, *lvl;
 	char *role;
@@ -248,7 +245,7 @@ sshd_selinux_getctxbyname(char *pwname,
 	int r = 0;
 	context_t con = NULL;
 
-	ssh_selinux_get_role_level(&role, &reqlvl);
+	ssh_selinux_get_role_level(&role, &reqlvl, the_authctxt);
 
 #ifdef HAVE_GETSEUSERBYNAME
 	if ((r=getseuserbyname(pwname, &sename, &lvl)) != 0) {
@@ -270,7 +267,7 @@ sshd_selinux_getctxbyname(char *pwname,
 
 	if (r == 0) {
 		/* If launched from xinetd, we must use current level */
-		if (inetd_flag) {
+		if (inetd) {
 			security_context_t sshdsc=NULL;
 
 			if (getcon_raw(&sshdsc) < 0)
@@ -331,7 +328,8 @@ sshd_selinux_getctxbyname(char *pwname,
 
 /* Setup environment variables for pam_selinux */
 static int
-sshd_selinux_setup_variables(int(*set_it)(char *, const char *))
+sshd_selinux_setup_variables(int(*set_it)(char *, const char *), int inetd,
+    Authctxt *the_authctxt)
 {
 	const char *reqlvl;
 	char *role;
@@ -340,11 +338,11 @@ sshd_selinux_setup_variables(int(*set_it)(char *, const char *))
 
 	debug3_f("setting execution context");
 
-	ssh_selinux_get_role_level(&role, &reqlvl);
+	ssh_selinux_get_role_level(&role, &reqlvl, the_authctxt);
 
 	rv = set_it("SELINUX_ROLE_REQUESTED", role ? role : "");
 
-	if (inetd_flag) {
+	if (inetd) {
 		use_current = "1";
 	} else {
 		use_current = "";
@@ -360,9 +358,10 @@ sshd_selinux_setup_variables(int(*set_it)(char *, const char *))
 }
 
 static int
-sshd_selinux_setup_pam_variables(void)
+sshd_selinux_setup_pam_variables(int inetd,
+    int(pam_setenv)(char *, const char *), Authctxt *the_authctxt)
 {
-	return sshd_selinux_setup_variables(do_pam_putenv);
+	return sshd_selinux_setup_variables(pam_setenv, inetd, the_authctxt);
 }
 
 static int
@@ -372,25 +371,28 @@ do_setenv(char *name, const char *value)
 }
 
 int
-sshd_selinux_setup_env_variables(void)
+sshd_selinux_setup_env_variables(int inetd, void *the_authctxt)
 {
-	return sshd_selinux_setup_variables(do_setenv);
+	Authctxt *authctxt = (Authctxt *) the_authctxt;
+	return sshd_selinux_setup_variables(do_setenv, inetd, authctxt);
 }
 
 /* Set the execution context to the default for the specified user */
 void
-sshd_selinux_setup_exec_context(char *pwname)
+sshd_selinux_setup_exec_context(char *pwname, int inetd,
+    int(pam_setenv)(char *, const char *), void *the_authctxt, int use_pam)
 {
 	security_context_t user_ctx = NULL;
 	int r = 0;
 	security_context_t default_ctx = NULL;
+	Authctxt *authctxt = (Authctxt *) the_authctxt;
 
 	if (!sshd_selinux_enabled())
 		return;
 
-	if (options.use_pam) {
+	if (use_pam) {
 		/* do not compute context, just setup environment for pam_selinux */
-		if (sshd_selinux_setup_pam_variables()) {
+		if (sshd_selinux_setup_pam_variables(inetd, pam_setenv, authctxt)) {
 			switch (security_getenforce()) {
 			case -1:
 				fatal_f("security_getenforce() failed");
@@ -406,7 +408,7 @@ sshd_selinux_setup_exec_context(char *pwname)
 
 	debug3_f("setting execution context");
 
-	r = sshd_selinux_getctxbyname(pwname, &default_ctx, &user_ctx);
+	r = sshd_selinux_getctxbyname(pwname, &default_ctx, &user_ctx, inetd, authctxt);
 	if (r >= 0) {
 		r = setexeccon(user_ctx);
 		if (r < 0) {

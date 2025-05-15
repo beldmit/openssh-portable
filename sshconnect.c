@@ -917,7 +917,7 @@ load_hostkeys_command(struct hostkeys *hostkeys, const char *command_template,
 
 	if ((pid = subprocess(tag, command, ac, av, &f,
 	    SSH_SUBPROCESS_STDOUT_CAPTURE|SSH_SUBPROCESS_UNSAFE_PATH|
-	    SSH_SUBPROCESS_PRESERVE_ENV, NULL, NULL, NULL)) == 0)
+	    SSH_SUBPROCESS_PRESERVE_ENV, NULL, NULL, NULL, 0, NULL)) == 0)
 		goto out;
 
 	load_hostkeys_file(hostkeys, hostfile_hostname, tag, f, 1);

@@ -120,7 +120,7 @@ char *config_file_name = _PATH_SERVER_CONFIG_FILE;
 int debug_flag = 0;
 
 /* Flag indicating that the daemon is being started from inetd. */
-static int inetd_flag = 0;
+int inetd_flag = 0;
 
 /* Saved arguments to main(). */
 static char **saved_argv;
