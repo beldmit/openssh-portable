@@ -145,7 +145,7 @@ extern char *__progname;
 extern int debug_flag;
 extern u_int utmp_len;
 extern int startup_pipe;
-extern void destroy_sensitive_data(void);
+extern void destroy_sensitive_data(struct ssh *);
 extern struct sshbuf *loginmsg;
 extern struct sshauthopt *auth_opts;
 extern char *tun_fwd_ifnames; /* serverloop.c */
@@ -653,6 +653,14 @@ do_exec_pty(struct ssh *ssh, Session *s, const char *command)
 	/* Parent.  Close the slave side of the pseudo tty. */
 	close(ttyfd);
 
+#if !defined(HAVE_OSF_SIA) && defined(SSH_AUDIT_EVENTS)
+	/* do_login in the child did not affect state in this process,
+	   compensate.  From an architectural standpoint, this is extremely
+	   ugly. */
+	if (command != NULL)
+		audit_count_session_open();
+#endif
+
 	/* Enter interactive session. */
 	s->ptymaster = ptymaster;
 	ssh_packet_set_interactive(ssh, 1,
@@ -745,15 +753,19 @@ do_exec(struct ssh *ssh, Session *s, const char *command)
 	    s->self);
 
 #ifdef SSH_AUDIT_EVENTS
+	if (s->command != NULL || s->command_handle != -1)
+		fatal("do_exec: command already set");
 	if (command != NULL)
-		mm_audit_run_command(command);
+		s->command = xstrdup(command);
 	else if (s->ttyfd == -1) {
 		char *shell = s->pw->pw_shell;
 
 		if (shell[0] == '\0')	/* empty shell means /bin/sh */
 			shell =_PATH_BSHELL;
-		mm_audit_run_command(shell);
+		s->command = xstrdup(shell);
 	}
+	if (s->command != NULL && s->ptyfd == -1)
+		s->command_handle = mm_audit_run_command(ssh, s->command);
 #endif
 	if (s->ttyfd != -1)
 		ret = do_exec_pty(ssh, s, command);
@@ -1538,8 +1550,11 @@ do_child(struct ssh *ssh, Session *s, const char *command)
 	sshpkt_fmt_connection_id(ssh, remote_id, sizeof(remote_id));
 
 	/* remove hostkey from the child's memory */
-	destroy_sensitive_data();
+	destroy_sensitive_data(ssh);
 	ssh_packet_clear_keys(ssh);
+	/* Don't audit this - both us and the parent would be talking to the
+	   monitor over a single socket, with no synchronization. */
+	packet_destroy_all(ssh, 0, 1);
 
 	/* Force a password change */
 	if (s->authctxt->force_pwchange) {
@@ -1751,6 +1766,9 @@ session_unused(int id)
 	sessions[id].ttyfd = -1;
 	sessions[id].ptymaster = -1;
 	sessions[id].x11_chanids = NULL;
+#ifdef SSH_AUDIT_EVENTS
+	sessions[id].command_handle = -1;
+#endif
 	sessions[id].next_unused = sessions_first_unused;
 	sessions_first_unused = id;
 }
@@ -1827,6 +1845,19 @@ session_open(Authctxt *authctxt, int chanid)
 	debug("session_open: session %d: link with channel %d", s->self, chanid);
 	s->chanid = chanid;
 	return 1;
+}
+
+Session *
+session_by_id(int id)
+{
+	if (id >= 0 && id < sessions_nalloc) {
+		Session *s = &sessions[id];
+		if (s->used)
+			return s;
+	}
+	debug_f("unknown id %d", id);
+	session_dump();
+	return NULL;
 }
 
 Session *
@@ -2449,6 +2480,32 @@ session_exit_message(struct ssh *ssh, Session *s, int status)
 		chan_write_failed(ssh, c);
 }
 
+#ifdef SSH_AUDIT_EVENTS
+void
+session_end_command2(struct ssh *ssh, Session *s)
+{
+	if (s->command != NULL) {
+		if (s->command_handle != -1)
+			audit_end_command(ssh, s->command_handle, s->command);
+		free(s->command);
+		s->command = NULL;
+		s->command_handle = -1;
+	}
+}
+
+static void
+session_end_command(struct ssh *ssh, Session *s)
+{
+	if (s->command != NULL) {
+		if (s->command_handle != -1)
+			mm_audit_end_command(ssh, s->command_handle, s->command);
+		free(s->command);
+		s->command = NULL;
+		s->command_handle = -1;
+	}
+}
+#endif
+
 void
 session_close(struct ssh *ssh, Session *s)
 {
@@ -2462,6 +2519,10 @@ session_close(struct ssh *ssh, Session *s)
 
 	if (s->ttyfd != -1)
 		session_pty_cleanup(s);
+#ifdef SSH_AUDIT_EVENTS
+	if (s->command)
+		session_end_command(ssh, s);
+#endif
 	free(s->term);
 	free(s->display);
 	free(s->x11_chanids);
@@ -2538,14 +2599,14 @@ session_close_by_channel(struct ssh *ssh, int id, int force, void *arg)
 }
 
 void
-session_destroy_all(struct ssh *ssh, void (*closefunc)(Session *))
+session_destroy_all(struct ssh *ssh, void (*closefunc)(struct ssh *ssh, Session *))
 {
 	int i;
 	for (i = 0; i < sessions_nalloc; i++) {
 		Session *s = &sessions[i];
 		if (s->used) {
 			if (closefunc != NULL)
-				closefunc(s);
+				closefunc(ssh, s);
 			else
 				session_close(ssh, s);
 		}
@@ -2672,6 +2733,15 @@ do_authenticated2(struct ssh *ssh, Authctxt *authctxt)
 	server_loop2(ssh, authctxt);
 }
 
+static void
+do_cleanup_one_session(struct ssh *ssh, Session *s)
+{
+	session_pty_cleanup2(s);
+#ifdef SSH_AUDIT_EVENTS
+	session_end_command2(ssh, s);
+#endif
+}
+
 void
 do_cleanup(struct ssh *ssh, Authctxt *authctxt)
 {
@@ -2735,7 +2805,7 @@ do_cleanup(struct ssh *ssh, Authctxt *authctxt)
 	 * or if running in monitor.
 	 */
 	if (mm_is_monitor())
-		session_destroy_all(ssh, session_pty_cleanup2);
+		session_destroy_all(ssh, do_cleanup_one_session);
 }
 
 /* Return a name for the remote host that fits inside utmp_size */

@@ -102,6 +102,7 @@
 #include "ssh-gss.h"
 #endif
 #include "monitor_wrap.h"
+#include "audit.h"
 #include "ssh-sandbox.h"
 #include "auth-options.h"
 #include "version.h"
@@ -191,8 +192,44 @@ struct include_list includes = TAILQ_HEAD_INITIALIZER(includes);
 struct sshbuf *loginmsg;
 
 /* Prototypes for various functions defined later in this file. */
-void destroy_sensitive_data(void);
-void demote_sensitive_data(void);
+void destroy_sensitive_data(struct ssh *);
+void demote_sensitive_data(struct ssh *);
+
+static int
+sshkey_is_private(const struct sshkey *k)
+{
+      switch (k->type) {
+#ifdef WITH_OPENSSL
+      case KEY_RSA_CERT:
+      case KEY_RSA: {
+              const BIGNUM *d;
+              const RSA *rsa = EVP_PKEY_get0_RSA(k->pkey);
+              RSA_get0_key(rsa, NULL, NULL, &d);
+              return d != NULL;
+          }
+      case KEY_DSA_CERT:
+      case KEY_DSA: {
+              const BIGNUM *priv_key;
+              DSA_get0_key(k->dsa, NULL, &priv_key);
+              return priv_key != NULL;
+          }
+#ifdef OPENSSL_HAS_ECC
+      case KEY_ECDSA_CERT:
+      case KEY_ECDSA: {
+              const EC_KEY * ecdsa = EVP_PKEY_get0_EC_KEY(k->pkey);
+              return EC_KEY_get0_private_key(ecdsa) != NULL;
+              }
+#endif /* OPENSSL_HAS_ECC */
+#endif /* WITH_OPENSSL */
+      case KEY_ED25519_CERT:
+      case KEY_ED25519:
+              return (k->ed25519_pk != NULL);
+      default:
+              /* fatal("key_is_private: bad key type %d", k->type); */
+              return 0;
+      }
+}
+
 static void do_ssh2_kex(struct ssh *);
 
 /*
@@ -223,18 +260,40 @@ grace_alarm_handler(int sig)
 	_exit(EXIT_LOGIN_GRACE);
 }
 
-/* Destroy the host and server keys.  They will no longer be needed. */
+/*
+ * Destroy the host and server keys.  They will no longer be needed.  Careful,
+ * this can be called from cleanup_exit() - i.e. from just about anywhere.
+ */
 void
-destroy_sensitive_data(void)
+destroy_sensitive_data(struct ssh *ssh)
 {
 	u_int i;
+#ifdef SSH_AUDIT_EVENTS
+	pid_t pid;
+	uid_t uid;
 
+	pid = getpid();
+	uid = getuid();
+#endif
 	for (i = 0; i < options.num_host_key_files; i++) {
 		if (sensitive_data.host_keys[i]) {
+			char *fp;
+
+			if (sshkey_is_private(sensitive_data.host_keys[i]))
+				fp = sshkey_fingerprint(sensitive_data.host_keys[i], options.fingerprint_hash, SSH_FP_HEX);
+			else
+				fp = NULL;
 			sshkey_free(sensitive_data.host_keys[i]);
 			sensitive_data.host_keys[i] = NULL;
+			if (fp != NULL) {
+#ifdef SSH_AUDIT_EVENTS
+				audit_destroy_sensitive_data(ssh, fp, pid, uid);
+#endif
+				free(fp);
+			}
 		}
-		if (sensitive_data.host_certificates[i]) {
+		if (sensitive_data.host_certificates
+		    && sensitive_data.host_certificates[i]) {
 			sshkey_free(sensitive_data.host_certificates[i]);
 			sensitive_data.host_certificates[i] = NULL;
 		}
@@ -243,20 +302,38 @@ destroy_sensitive_data(void)
 
 /* Demote private to public keys for network child */
 void
-demote_sensitive_data(void)
+demote_sensitive_data(struct ssh *ssh)
 {
 	struct sshkey *tmp;
 	u_int i;
 	int r;
+#ifdef SSH_AUDIT_EVENTS
+	pid_t pid;
+	uid_t uid;
 
+	pid = getpid();
+	uid = getuid();
+#endif
 	for (i = 0; i < options.num_host_key_files; i++) {
 		if (sensitive_data.host_keys[i]) {
+			char *fp;
+
+			if (sshkey_is_private(sensitive_data.host_keys[i]))
+				fp = sshkey_fingerprint(sensitive_data.host_keys[i], options.fingerprint_hash, SSH_FP_HEX);
+			else
+				fp = NULL;
 			if ((r = sshkey_from_private(
 			    sensitive_data.host_keys[i], &tmp)) != 0)
 				fatal_r(r, "could not demote host %s key",
 				    sshkey_type(sensitive_data.host_keys[i]));
 			sshkey_free(sensitive_data.host_keys[i]);
 			sensitive_data.host_keys[i] = tmp;
+			if (fp != NULL) {
+#ifdef SSH_AUDIT_EVENTS
+				audit_destroy_sensitive_data(ssh, fp, pid, uid);
+#endif
+				free(fp);
+			}
 		}
 		/* Certs do not need demotion */
 	}
@@ -284,7 +361,7 @@ reseed_prngs(void)
 }
 
 static void
-privsep_preauth_child(void)
+privsep_preauth_child(struct ssh *ssh)
 {
 	gid_t gidset[1];
 
@@ -299,7 +376,7 @@ privsep_preauth_child(void)
 	reseed_prngs();
 
 	/* Demote the private keys to public keys. */
-	demote_sensitive_data();
+	demote_sensitive_data(ssh);
 
 #ifdef WITH_SELINUX
 	sshd_selinux_change_privsep_preauth_context();
@@ -337,7 +414,7 @@ privsep_preauth(struct ssh *ssh)
 	pmonitor->m_pkex = &ssh->kex;
 
 	box = ssh_sandbox_init(pmonitor);
-	pid = fork();
+	pmonitor->m_pid = pid = fork();
 	if (pid == -1) {
 		fatal("fork of unprivileged child failed");
 	} else if (pid != 0) {
@@ -382,7 +459,7 @@ privsep_preauth(struct ssh *ssh)
 		/* Arrange for logging to be sent to the monitor */
 		set_log_handler(mm_log_handler, pmonitor);
 
-		privsep_preauth_child();
+		privsep_preauth_child(ssh);
 		setproctitle("%s", "[net]");
 		if (box != NULL)
 			ssh_sandbox_child(box);
@@ -436,7 +513,7 @@ privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
 		set_log_handler(mm_log_handler, pmonitor);
 
 	/* Demote the private keys to public keys. */
-	demote_sensitive_data();
+	demote_sensitive_data(ssh);
 
 	reseed_prngs();
 
@@ -1421,6 +1498,9 @@ main(int ac, char **av)
 	do_authenticated(ssh, authctxt);
 
 	/* The connection has been terminated. */
+	packet_destroy_all(ssh, 1, 1);
+	destroy_sensitive_data(ssh);
+
 	ssh_packet_get_bytes(ssh, &ibytes, &obytes);
 	verbose("Transferred: sent %llu, received %llu bytes",
 	    (unsigned long long)obytes, (unsigned long long)ibytes);
@@ -1581,6 +1661,14 @@ do_ssh2_kex(struct ssh *ssh)
 void
 cleanup_exit(int i)
 {
+	static int in_cleanup = 0;
+
+	/* cleanup_exit can be called at the very least from the privsep
+	   wrappers used for auditing.  Make sure we don't recurse
+	   indefinitely. */
+	if (in_cleanup)
+		_exit(i);
+	in_cleanup = 1;
 	extern int auth_attempted; /* monitor.c */
 
 	if (the_active_state != NULL && the_authctxt != NULL) {
@@ -1597,7 +1685,9 @@ cleanup_exit(int i)
 	}
 #ifdef SSH_AUDIT_EVENTS
 	/* done after do_cleanup so it can cancel the PAM auth 'thread' */
-	if (the_active_state != NULL && mm_is_monitor())
+	if (the_active_state != NULL &&
+	    (the_authctxt == NULL || !the_authctxt->authenticated) &&
+	    mm_is_monitor())
 		audit_event(the_active_state, SSH_CONNECTION_ABANDON);
 #endif
 	/* Override default fatal exit value when auth was attempted */

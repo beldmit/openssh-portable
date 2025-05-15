@@ -230,7 +230,7 @@ userauth_pubkey(struct ssh *ssh, const char *method)
 		/* test for correct signature */
 		authenticated = 0;
 		if (mm_user_key_allowed(ssh, pw, key, 1, &authopts) &&
-		    mm_sshkey_verify(key, sig, slen,
+		    mm_user_key_verify(ssh, key, sig, slen,
 		    sshbuf_ptr(b), sshbuf_len(b),
 		    (ssh->compat & SSH_BUG_SIGTYPE) == 0 ? pkalg : NULL,
 		    ssh->compat, &sig_details) == 0) {
@@ -321,6 +321,20 @@ done:
 	free(sig);
 	sshkey_sig_details_free(sig_details);
 	return authenticated;
+}
+
+int
+user_key_verify(struct ssh *ssh, const struct sshkey *key, const u_char *sig,
+    size_t slen, const u_char *data, size_t datalen, const char *pkalg, u_int compat,
+    struct sshkey_sig_details **detailsp)
+{
+	int rv;
+
+	rv = sshkey_verify(key, sig, slen, data, datalen, pkalg, compat, detailsp);
+#ifdef SSH_AUDIT_EVENTS
+	audit_key(ssh, 1, &rv, key);
+#endif
+	return rv;
 }
 
 static int

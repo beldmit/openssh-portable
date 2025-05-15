@@ -215,6 +215,8 @@ struct sshkey	*get_hostkey_private_by_type(int, int, struct ssh *);
 int	 get_hostkey_index(struct sshkey *, int, struct ssh *);
 int	 sshd_hostkey_sign(struct ssh *, struct sshkey *, struct sshkey *,
     u_char **, size_t *, const u_char *, size_t, const char *);
+int	 hostbased_key_verify(struct ssh *, const struct sshkey *, const u_char *, size_t,
+    const u_char *, size_t, const char *, u_int, struct sshkey_sig_details **);
 
 /* Key / cert options linkage to auth layer */
 int	 auth_activate_options(struct ssh *, struct sshauthopt *);
@@ -240,6 +242,8 @@ int	 auth_check_authkey_line(struct passwd *, struct sshkey *,
     char *, const char *, const char *, const char *, struct sshauthopt **);
 int	 auth_check_authkeys_file(struct passwd *, FILE *, char *,
     struct sshkey *, const char *, const char *, struct sshauthopt **);
+int	 user_key_verify(struct ssh *, const struct sshkey *, const u_char *, size_t,
+    const u_char *, size_t, const char *, u_int, struct sshkey_sig_details **);
 FILE	*auth_openkeyfile(const char *, struct passwd *, int);
 FILE	*auth_openprincipals(const char *, struct passwd *, int);
 
