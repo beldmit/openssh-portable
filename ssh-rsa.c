@@ -533,7 +533,8 @@ ssh_rsa_verify(const struct sshkey *key,
 			ret = SSH_ERR_INVALID_ARGUMENT;
 			goto out;
 		}
-		if (hash_alg != want_alg) {
+		if (hash_alg != want_alg && want_alg != SSH_DIGEST_SHA1) {
+			debug_f("Unexpected digest algorithm: got %d, wanted %d", hash_alg, want_alg);
 			ret = SSH_ERR_SIGNATURE_INVALID;
 			goto out;
 		}
