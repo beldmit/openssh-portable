@@ -221,7 +221,7 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr *hostaddr, u_short port,
     const struct ssh_conn_info *cinfo)
 {
 	char *myproposal[PROPOSAL_MAX];
-	char *all_key, *hkalgs = NULL;
+	char *all_key, *hkalgs = NULL, *filtered_algs = NULL;
 	int r, use_known_hosts_order = 0;
 
 #if defined(GSSAPI) && defined(WITH_OPENSSL)
@@ -257,10 +257,22 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr *hostaddr, u_short port,
 	if (use_known_hosts_order)
 		hkalgs = order_hostkeyalgs(host, hostaddr, port, cinfo);
 
+	filtered_algs = hkalgs ? match_filter_allowlist(hkalgs, options.pubkey_accepted_algos)
+		               : match_filter_allowlist(options.hostkeyalgorithms,
+				 options.pubkey_accepted_algos);
+	if (filtered_algs == NULL) {
+		if (hkalgs)
+			fatal_f("No match between algorithms for %s (host %s) and pubkey accepted algorithms %s",
+			       hkalgs, host, options.pubkey_accepted_algos);
+		else
+			fatal_f("No match between host key algorithms %s and pubkey accepted algorithms %s",
+			        options.hostkeyalgorithms, options.pubkey_accepted_algos);
+	}
+
 	kex_proposal_populate_entries(ssh, myproposal,
 	    options.kex_algorithms, options.ciphers, options.macs,
 	    compression_alg_list(options.compression),
-	    hkalgs ? hkalgs : options.hostkeyalgorithms);
+	    filtered_algs);
 
 #if defined(GSSAPI) && defined(WITH_OPENSSL)
 	if (options.gss_keyex) {
@@ -304,6 +316,7 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr *hostaddr, u_short port,
 #endif
 
 	free(hkalgs);
+	free(filtered_algs);
 
 	/* start key exchange */
 	if ((r = kex_setup(ssh, myproposal)) != 0)
