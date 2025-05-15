@@ -27,6 +27,7 @@ int sshd_selinux_enabled(void);
 void sshd_selinux_copy_context(void);
 void sshd_selinux_setup_exec_context(char *);
 int sshd_selinux_setup_env_variables(void);
+void sshd_selinux_change_privsep_preauth_context(void);
 #endif
 
 #ifdef LINUX_OOM_ADJUST

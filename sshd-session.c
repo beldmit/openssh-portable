@@ -302,7 +302,7 @@ privsep_preauth_child(void)
 	demote_sensitive_data();
 
 #ifdef WITH_SELINUX
-	ssh_selinux_change_context("sshd_net_t");
+	sshd_selinux_change_privsep_preauth_context();
 #endif
 
 	/* Demote the child */
