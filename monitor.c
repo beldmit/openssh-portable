@@ -292,6 +292,8 @@ monitor_child_preauth(struct ssh *ssh, struct monitor *pmonitor)
 		close(pmonitor->m_log_sendfd);
 	pmonitor->m_log_sendfd = pmonitor->m_recvfd = -1;
 
+	pmonitor->m_state = "preauth";
+
 	authctxt = (Authctxt *)ssh->authctxt;
 	memset(authctxt, 0, sizeof(*authctxt));
 	ssh->authctxt = authctxt;
@@ -420,6 +422,8 @@ monitor_child_postauth(struct ssh *ssh, struct monitor *pmonitor)
 	close(pmonitor->m_recvfd);
 	pmonitor->m_recvfd = -1;
 
+	pmonitor->m_state = "postauth";
+
 	monitor_set_child_handler(pmonitor->m_pid);
 	ssh_signal(SIGHUP, &monitor_child_handler);
 	ssh_signal(SIGTERM, &monitor_child_handler);
@@ -492,7 +496,7 @@ monitor_read_log(struct monitor *pmonitor)
 	/* Log it */
 	if (log_level_name(level) == NULL)
 		fatal_f("invalid log level %u (corrupted message?)", level);
-	sshlogdirect(level, forced, "%s [preauth]", msg);
+	sshlogdirect(level, forced, "%s [%s]", msg, pmonitor->m_state);
 
 	sshbuf_free(logmsg);
 	free(msg);
@@ -1912,13 +1916,28 @@ monitor_init(void)
 	mon = xcalloc(1, sizeof(*mon));
 	monitor_openfds(mon, 1);
 
+	mon->m_state = "";
+
 	return mon;
 }
 
 void
-monitor_reinit(struct monitor *mon)
+monitor_reinit(struct monitor *mon, const char *chroot_dir)
 {
-	monitor_openfds(mon, 0);
+	struct stat dev_log_stat;
+	char *dev_log_path;
+	int do_logfds = 0;
+
+	if (chroot_dir != NULL) {
+		xasprintf(&dev_log_path, "%s/dev/log", chroot_dir);
+
+		if (stat(dev_log_path, &dev_log_stat) != 0) {
+			debug_f("/dev/log doesn't exist in %s chroot - will try to log via monitor using [postauth] suffix", chroot_dir);
+			do_logfds = 1;
+		}
+		free(dev_log_path);
+	}
+	monitor_openfds(mon, do_logfds);
 }
 
 #ifdef GSSAPI
