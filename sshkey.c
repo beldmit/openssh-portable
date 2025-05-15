@@ -132,6 +132,75 @@ extern const struct sshkey_impl sshkey_xmss_impl;
 extern const struct sshkey_impl sshkey_xmss_cert_impl;
 #endif
 
+static int ssh_gss_equal(const struct sshkey *, const struct sshkey *)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static int ssh_gss_serialize_public(const struct sshkey *, struct sshbuf *,
+	enum sshkey_serialize_rep)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static int ssh_gss_deserialize_public(const char *, struct sshbuf *,
+	     struct sshkey *)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static int ssh_gss_serialize_private(const struct sshkey *, struct sshbuf *,
+	     enum sshkey_serialize_rep)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static int ssh_gss_deserialize_private(const char *, struct sshbuf *,
+	     struct sshkey *)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static int ssh_gss_copy_public(const struct sshkey *, struct sshkey *)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static int ssh_gss_verify(const struct sshkey *, const u_char *, size_t,
+	    const u_char *, size_t, const char *, u_int,
+	    struct sshkey_sig_details **)
+{
+	return SSH_ERR_FEATURE_UNSUPPORTED;
+}
+
+static const struct sshkey_impl_funcs sshkey_gss_funcs = {
+	/* .size = */		NULL,
+	/* .alloc = */		NULL,
+	/* .cleanup = */	NULL,
+	/* .equal = */		ssh_gss_equal,
+	/* .ssh_serialize_public = */ ssh_gss_serialize_public,
+	/* .ssh_deserialize_public = */ ssh_gss_deserialize_public,
+	/* .ssh_serialize_private = */ ssh_gss_serialize_private,
+	/* .ssh_deserialize_private = */ ssh_gss_deserialize_private,
+	/* .generate = */	NULL,
+	/* .copy_public = */	ssh_gss_copy_public,
+	/* .sign = */		NULL,
+	/* .verify = */		ssh_gss_verify,
+};
+
+/* The struct is intentionally dummy and has no gss calls */
+static const struct sshkey_impl sshkey_gss_kex_impl = {
+	/* .name = */		"null",
+	/* .shortname = */	"null",
+	/* .sigalg = */		NULL,
+	/* .type = */		KEY_NULL,
+	/* .nid = */		0,
+	/* .cert = */		0,
+	/* .sigonly = */	0,
+	/* .keybits = */	0, /* FIXME */
+	/* .funcs = */		&sshkey_gss_funcs,
+};
+
 const struct sshkey_impl * const keyimpls[] = {
 	&sshkey_ed25519_impl,
 	&sshkey_ed25519_cert_impl,
@@ -170,6 +239,7 @@ const struct sshkey_impl * const keyimpls[] = {
 	&sshkey_xmss_impl,
 	&sshkey_xmss_cert_impl,
 #endif
+	&sshkey_gss_kex_impl,
 	NULL
 };
 
@@ -339,7 +409,7 @@ sshkey_alg_list(int certs_only, int plain_only, int include_sigonly, char sep)
 
 	for (i = 0; keyimpls[i] != NULL; i++) {
 		impl = keyimpls[i];
-		if (impl->name == NULL)
+		if (impl->name == NULL || impl->type == KEY_NULL)
 			continue;
 		if (!include_sigonly && impl->sigonly)
 			continue;

@@ -662,8 +662,8 @@ notify_hostkeys(struct ssh *ssh)
 	}
 	debug3_f("sent %u hostkeys", nkeys);
 	if (nkeys == 0)
-		fatal_f("no hostkeys");
-	if ((r = sshpkt_send(ssh)) != 0)
+		debug3_f("no hostkeys");
+	else if ((r = sshpkt_send(ssh)) != 0)
 		sshpkt_fatal(ssh, r, "%s: send", __func__);
 	sshbuf_free(buf);
 }
@@ -1182,8 +1182,9 @@ main(int ac, char **av)
 			break;
 		}
 	}
-	if (!have_key)
-		fatal("internal error: monitor received no hostkeys");
+	/* The GSSAPI key exchange can run without a host key */
+	if (!have_key && !options.gss_keyex)
+		fatal("internal error: monitor received no hostkeys and GSS KEX is not configured");
 
 	/* Ensure that umask disallows at least group and world write */
 	new_umask = umask(0077) | 0022;
@@ -1476,6 +1477,48 @@ do_ssh2_kex(struct ssh *ssh)
 
 	free(hkalgs);
 
+#if defined(GSSAPI) && defined(WITH_OPENSSL)
+	{
+	char *orig;
+	char *gss = NULL;
+	char *newstr = NULL;
+	orig = myproposal[PROPOSAL_KEX_ALGS];
+
+	/*
+	 * If we don't have a host key, then there's no point advertising
+	 * the other key exchange algorithms
+	 */
+
+	if (strlen(myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS]) == 0)
+		orig = NULL;
+
+	if (options.gss_keyex)
+		gss = ssh_gssapi_server_mechanisms();
+	else
+		gss = NULL;
+
+	if (gss && orig)
+		xasprintf(&newstr, "%s,%s", gss, orig);
+	else if (gss)
+		xasprintf(&newstr, "%s,%s", gss, "kex-strict-s-v00@openssh.com");
+	else if (orig)
+		newstr = orig;
+
+	/*
+	 * If we've got GSSAPI mechanisms, then we've got the 'null' host
+	 * key alg, but we can't tell people about it unless its the only
+	 * host key algorithm we support
+	 */
+	if (gss && (strlen(myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS])) == 0)
+		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = xstrdup("null");
+
+	if (newstr)
+		myproposal[PROPOSAL_KEX_ALGS] = newstr;
+	else
+		fatal("No supported key exchange algorithms");
+	}
+#endif
+
 	/* start key exchange */
 	if ((r = kex_setup(ssh, myproposal)) != 0)
 		fatal_r(r, "kex_setup");
@@ -1493,7 +1536,18 @@ do_ssh2_kex(struct ssh *ssh)
  #ifdef OPENSSL_HAS_ECC
 	kex->kex[KEX_ECDH_SHA2] = kex_gen_server;
  #endif
-#endif
+# ifdef GSSAPI
+	if (options.gss_keyex) {
+		kex->kex[KEX_GSS_GRP1_SHA1] = kexgss_server;
+		kex->kex[KEX_GSS_GRP14_SHA1] = kexgss_server;
+		kex->kex[KEX_GSS_GRP14_SHA256] = kexgss_server;
+		kex->kex[KEX_GSS_GRP16_SHA512] = kexgss_server;
+		kex->kex[KEX_GSS_GEX_SHA1] = kexgssgex_server;
+		kex->kex[KEX_GSS_NISTP256_SHA256] = kexgss_server;
+		kex->kex[KEX_GSS_C25519_SHA256] = kexgss_server;
+	}
+# endif
+#endif /* WITH_OPENSSL */
 	kex->kex[KEX_C25519_SHA256] = kex_gen_server;
 	kex->kex[KEX_KEM_SNTRUP761X25519_SHA512] = kex_gen_server;
  	kex->kex[KEX_KEM_MLKEM768X25519_SHA256] = kex_gen_server;
