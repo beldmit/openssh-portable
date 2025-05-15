@@ -304,6 +304,7 @@ SSHCONF_INTFLAG(kerberos_authentication, KerberosAuthentication, SSHCFG_ALL, 0, 
 SSHCONF_INTFLAG(kerberos_or_local_passwd, KerberosOrLocalPasswd, SSHCFG_GLOBAL, 1, SSHCFG_COPY_NONE) \
 SSHCONF_INTFLAG(kerberos_ticket_cleanup, KerberosTicketCleanup, SSHCFG_GLOBAL, 1, SSHCFG_COPY_NONE) \
 SSHCONF_INTFLAG(kerberos_unique_ccache, KerberosUniqueCCache, SSHCFG_GLOBAL, 0, SSHCFG_COPY_NONE) \
+SSHCONF_INTFLAG(use_kuserok, KerberosUseKuserok, SSHCFG_ALL, 1, SSHCFG_COPY_MATCH) \
 SSHD_CONFIG_KRB5_AFS
 #else /* KRB5 */
 #define SSHD_CONFIG_ENTRIES_KRB5 \
@@ -311,6 +312,7 @@ SSHCONF_UNSUPPORTED_INT(kerberos_authentication, KerberosAuthentication, SSHCFG_
 SSHCONF_UNSUPPORTED_INT(kerberos_or_local_passwd, KerberosOrLocalPasswd, SSHCFG_GLOBAL) \
 SSHCONF_UNSUPPORTED_INT(kerberos_ticket_cleanup, KerberosTicketCleanup, SSHCFG_GLOBAL) \
 SSHCONF_UNSUPPORTED_INT(kerberos_unique_ccache, KerberosUniqueCCache, SSHCFG_GLOBAL) \
+SSHCONF_UNSUPPORTED_INT(use_kuserok, KerberosUseKuserok, SSHCFG_ALL) \
 SSHCONF_UNSUPPORTED_INT(kerberos_get_afs_token, KerberosGetAFSToken, SSHCFG_GLOBAL)
 #endif /* KRB5 */
 
