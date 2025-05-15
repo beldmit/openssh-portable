@@ -414,13 +414,15 @@ ssh_gssapi_cleanup_creds(void)
 }
 
 /* As user */
-void
+int
 ssh_gssapi_storecreds(void)
 {
 	if (gssapi_client.mech && gssapi_client.mech->storecreds) {
-		(*gssapi_client.mech->storecreds)(&gssapi_client);
+		return (*gssapi_client.mech->storecreds)(&gssapi_client);
 	} else
 		debug("ssh_gssapi_storecreds: Not a GSSAPI mechanism");
+
+	return 0;
 }
 
 /* This allows GSSAPI methods to do things to the child's environment based
@@ -500,9 +502,7 @@ ssh_gssapi_rekey_creds(void) {
 	char *envstr;
 #endif
 
-	if (gssapi_client.store.filename == NULL &&
-	    gssapi_client.store.envval == NULL &&
-	    gssapi_client.store.envvar == NULL)
+	if (gssapi_client.store.envval == NULL)
 		return;
 
 	ok = mm_ssh_gssapi_update_creds(&gssapi_client.store);
