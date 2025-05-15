@@ -44,7 +44,7 @@
 static int input_kex_gen_init(int, uint32_t, struct ssh *);
 static int input_kex_gen_reply(int type, uint32_t seq, struct ssh *ssh);
 
-static int
+int
 kex_gen_hash(
     int hash_alg,
     const struct sshbuf *client_version,
