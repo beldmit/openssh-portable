@@ -432,7 +432,7 @@ privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
 	 * fd passing, as AFAIK PTY allocation on this platform doesn't require
 	 * special privileges to begin with.
 	 */
-#if defined(DISABLE_FD_PASSING) && !defined(HAVE_CYGWIN)
+#if defined(DISABLE_FD_PASSING) && !defined(HAVE_CYGWIN) && !defined(WITH_SELINUX)
 	skip_privdrop = 1;
 #endif
 
