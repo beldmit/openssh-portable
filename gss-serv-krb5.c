@@ -66,6 +66,7 @@ static int ssh_gssapi_krb5_cmdok(krb5_principal, const char *, const char *,
     int);
 
 static krb5_context krb_context = NULL;
+extern int ssh_krb5_kuserok(krb5_context, krb5_principal, const char *, int);
 
 /* Initialise the krb5 library, for the stuff that GSSAPI won't do */
 
@@ -91,6 +92,103 @@ ssh_gssapi_krb5_init(void)
  * Returns true if the user is OK to log in, otherwise returns 0
  */
 
+/* The purpose of the function is to find out if a Kerberos principal is
+ * allowed to log in as the given local user. This is a general problem with
+ * Kerberized services because by design the Kerberos principals are
+ * completely independent from the local user names. This is one of the
+ * reasons why Kerberos is working well on different operating systems like
+ * Windows and UNIX/Linux. Nevertheless a relationship between a Kerberos
+ * principal and a local user name must be established because otherwise every
+ * access would be granted for every principal with a valid ticket.
+ *
+ * Since it is a general issue libkrb5 provides some functions for
+ * applications to find out about the relationship between the Kerberos
+ * principal and a local user name. They are krb5_kuserok() and
+ * krb5_aname_to_localname().
+ *
+ * krb5_kuserok() can be used to "Determine if a principal is authorized to
+ * log in as a local user" (from the MIT Kerberos documentation of this
+ * function). Which is exactly what we are looking for and should be the
+ * preferred choice. It accepts the Kerberos principal and a local user name
+ * and let libkrb5 or its plugins determine if they relate to each other or
+ * not.
+ *
+ * krb5_aname_to_localname() can use used to "Convert a principal name to a
+ * local name" (from the MIT Kerberos documentation of this function). It
+ * accepts a Kerberos principle and returns a local name and it is up to the
+ * application to do any additional checks. There are two issues using
+ * krb5_aname_to_localname(). First, since POSIX user names are case
+ * sensitive, the calling application in general has no other choice than
+ * doing a case-sensitive string comparison between the name returned by
+ * krb5_aname_to_localname() and the name used at the login prompt. When the
+ * users are provided by a case in-sensitive server, e.g. Active Directory,
+ * this might lead to login failures because the user typing the name at the
+ * login prompt might not be aware of the right case. Another issue might be
+ * caused if there are multiple alias names available for a single user. E.g.
+ * the canonical name of a user is user@group.department.example.com but there
+ * exists a shorter login name, e.g. user@example.com, to safe typing at the
+ * login prompt. Here krb5_aname_to_localname() can only return the canonical
+ * name, but if the short alias is used at the login prompt authentication
+ * will fail as well. All this can be avoided by using krb5_kuserok() and
+ * configuring krb5.conf or using a suitable plugin to meet the needs of the
+ * given environment.
+ *
+ * The Fedora and RHEL version of openssh contain two patches which modify the
+ * access control behavior:
+ *  - openssh-6.6p1-kuserok.patch
+ *  - openssh-6.6p1-force_krb.patch
+ *
+ * openssh-6.6p1-kuserok.patch adds a new option KerberosUseKuserok for
+ * sshd_config which controls if krb5_kuserok() is used to check if the
+ * principle is authorized or if krb5_aname_to_localname() should be used.
+ * The reason to add this patch was that krb5_kuserok() by default checks if
+ * a .k5login file exits in the users home-directory. With this the user can
+ * give access to his account for any given principal which might be
+ * in violation with company policies and it would be useful if this can be
+ * rejected. Nevertheless the patch ignores the fact that krb5_kuserok() does
+ * no only check .k5login but other sources as well and checking .k5login can
+ * be disabled for all applications in krb5.conf as well. With this new
+ * option KerberosUseKuserok set to 'no' (and this is the default for RHEL7
+ * and Fedora 21) openssh can only use krb5_aname_to_localname() with the
+ * restrictions mentioned above.
+ *
+ * openssh-6.6p1-force_krb.patch adds a ksu like behaviour to ssh, i.e. when
+ * using GSSAPI authentication only commands configured in the .k5user can be
+ * executed. Here the wrong assumption that krb5_kuserok() only checks
+ * .k5login is made as well. In contrast ksu checks .k5login directly and
+ * does not use krb5_kuserok() which might be more useful for the given
+ * purpose. Additionally this patch is not synced with
+ * openssh-6.6p1-kuserok.patch.
+ *
+ * The current patch tries to restore the usage of krb5_kuserok() so that e.g.
+ * localauth plugins can be used. It does so by adding a forth parameter to
+ * ssh_krb5_kuserok() which indicates whether .k5login exists or not. If it
+ * does not exists krb5_kuserok() is called even if KerberosUseKuserok is set
+ * to 'no' because the intent of the option is to not check .k5login and if it
+ * does not exists krb5_kuserok() returns a result without checking .k5login.
+ * If .k5login does exists and KerberosUseKuserok is 'no' we fall back to
+ * krb5_aname_to_localname(). This is in my point of view an acceptable
+ * limitation and does not break the current behaviour.
+ *
+ * Additionally with this patch ssh_krb5_kuserok() is called in
+ * ssh_gssapi_krb5_cmdok() instead of only krb5_aname_to_localname() is
+ * neither .k5login nor .k5users exists to allow plugin evaluation via
+ * krb5_kuserok() as well.
+ *
+ * I tried to keep the patch as minimal as possible, nevertheless I see some
+ * areas for improvement which, if they make sense, have to be evaluated
+ * carefully because they might change existing behaviour and cause breaks
+ * during upgrade:
+ * - I wonder if disabling .k5login usage make sense in sshd or if it should
+ *   be better disabled globally in krb5.conf
+ * - if really needed openssh-6.6p1-kuserok.patch should be fixed to really
+ *   only disable checking .k5login and maybe .k5users
+ * - the ksu behaviour should be configurable and maybe check the .k5login and
+ *   .k5users files directly like ksu itself does
+ * - to make krb5_aname_to_localname() more useful an option for sshd to use
+ *   the canonical name (the one returned by getpwnam()) instead of the name
+ *   given at the login prompt might be useful */
+
 static int
 ssh_gssapi_krb5_userok(ssh_gssapi_client *client, char *name)
 {
@@ -115,7 +213,8 @@ ssh_gssapi_krb5_userok(ssh_gssapi_client *client, char *name)
 	/* NOTE: .k5login and .k5users must opened as root, not the user,
 	 * because if they are on a krb5-protected filesystem, user credentials
 	 * to access these files aren't available yet. */
-	if (krb5_kuserok(krb_context, princ, name) && k5login_exists) {
+	if (k5login_exists &&
+	    ssh_krb5_kuserok(krb_context, princ, name, k5login_exists)) {
 		retval = 1;
 		logit("Authorized to %s, krb5 principal %s (krb5_kuserok)",
 		    name, (char *)client->displayname.value);
@@ -190,9 +289,8 @@ ssh_gssapi_krb5_cmdok(krb5_principal principal, const char *name,
 	snprintf(file, sizeof(file), "%s/.k5users", pw->pw_dir);
 	/* If both .k5login and .k5users DNE, self-login is ok. */
 	if (!k5login_exists && (access(file, F_OK) == -1)) {
-		return (krb5_aname_to_localname(krb_context, principal,
-		    sizeof(kuser), kuser) == 0) &&
-		    (strcmp(kuser, luser) == 0);
+                return ssh_krb5_kuserok(krb_context, principal, luser,
+                                        k5login_exists);
 	}
 	if ((fp = fopen(file, "r")) == NULL) {
 		int saved_errno = errno;

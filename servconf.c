@@ -2230,6 +2230,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 		}
 		break;
 
+	case sKerberosUseKuserok:
+		intptr = &options->use_kuserok;
+		goto parse_flag;
+
 	case sMatch:
 		if (cmdline)
 			fatal("Match directive not supported as a command-line "
@@ -4243,6 +4247,7 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sKerberosGetAFSToken, o->kerberos_get_afs_token);
 # endif
 	dump_cfg_fmtint(sKerberosUniqueCCache, o->kerberos_unique_ccache);
+	dump_cfg_fmtint(sKerberosUseKuserok, o->use_kuserok);
 #endif
 #ifdef GSSAPI
 	dump_cfg_fmtint(sGSSAPIAuthentication, o->gss_authentication);
