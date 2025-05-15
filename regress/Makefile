@@ -127,6 +127,7 @@ INTEROP_TESTS+=	dropbear-ciphers dropbear-kex dropbear-server
 #INTEROP_TESTS+=ssh-com ssh-com-client ssh-com-keygen ssh-com-sftp
 
 EXTRA_TESTS=	agent-pkcs11
+EXTRA_TESTS+=	gss-auth gss-kex
 #EXTRA_TESTS+= 	cipher-speed
 
 USERNAME=		${LOGNAME}
