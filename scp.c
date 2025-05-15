@@ -1875,6 +1875,10 @@ sink(int argc, char **argv, const char *src)
 			free(vect[0]);
 			continue;
 		}
+		if (buf[0] == 'C' && ! exists && np[strlen(np)-1] == '/') {
+			errno = ENOTDIR;
+			goto bad;
+		}
 		omode = mode;
 		mode |= S_IWUSR;
 		if ((ofd = open(np, O_WRONLY|O_CREAT, mode)) == -1) {
