@@ -3345,7 +3345,7 @@ dump_config(ServerOptions *o)
 	dump_cfg_string(sXAuthLocation, o->xauth_location);
 	dump_cfg_string(sCiphers, o->ciphers);
 	dump_cfg_string(sMacs, o->macs);
-	dump_cfg_string(sBanner, o->banner);
+	dump_cfg_string(sBanner, o->banner != NULL ? o->banner : "none");
 	dump_cfg_string(sForceCommand, o->adm_forced_command);
 	dump_cfg_string(sChrootDirectory, o->chroot_directory);
 	dump_cfg_string(sTrustedUserCAKeys, o->trusted_user_ca_keys);
