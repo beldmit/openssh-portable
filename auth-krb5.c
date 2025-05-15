@@ -51,6 +51,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <krb5.h>
+#include <profile.h>
 
 extern ServerOptions	 options;
 
@@ -77,7 +78,7 @@ auth_krb5_password(Authctxt *authctxt, const char *password)
 #endif
 	krb5_error_code problem;
 	krb5_ccache ccache = NULL;
-	int len;
+	char *ticket_name = NULL;
 	char *client, *platform_client;
 	const char *errmsg;
 
@@ -163,8 +164,8 @@ auth_krb5_password(Authctxt *authctxt, const char *password)
 		goto out;
 	}
 
-	problem = ssh_krb5_cc_gen(authctxt->krb5_ctx,
-	    &authctxt->krb5_fwd_ccache);
+	problem = ssh_krb5_cc_new_unique(authctxt->krb5_ctx,
+	     &authctxt->krb5_fwd_ccache, &authctxt->krb5_set_env);
 	if (problem)
 		goto out;
 
@@ -179,15 +180,14 @@ auth_krb5_password(Authctxt *authctxt, const char *password)
 		goto out;
 #endif
 
-	authctxt->krb5_ticket_file = (char *)krb5_cc_get_name(authctxt->krb5_ctx, authctxt->krb5_fwd_ccache);
+	problem = krb5_cc_get_full_name(authctxt->krb5_ctx,
+	    authctxt->krb5_fwd_ccache, &ticket_name);
 
-	len = strlen(authctxt->krb5_ticket_file) + 6;
-	authctxt->krb5_ccname = xmalloc(len);
-	snprintf(authctxt->krb5_ccname, len, "FILE:%s",
-	    authctxt->krb5_ticket_file);
+	authctxt->krb5_ccname = xstrdup(ticket_name);
+	krb5_free_string(authctxt->krb5_ctx, ticket_name);
 
 #ifdef USE_PAM
-	if (options.use_pam)
+	if (options.use_pam && authctxt->krb5_set_env)
 		do_pam_putenv("KRB5CCNAME", authctxt->krb5_ccname);
 #endif
 
@@ -223,11 +223,54 @@ auth_krb5_password(Authctxt *authctxt, const char *password)
 void
 krb5_cleanup_proc(Authctxt *authctxt)
 {
+	struct stat krb5_ccname_stat;
+	char krb5_ccname[128], *krb5_ccname_dir_start, *krb5_ccname_dir_end;
+
 	debug("krb5_cleanup_proc called");
 	if (authctxt->krb5_fwd_ccache) {
-		krb5_cc_destroy(authctxt->krb5_ctx, authctxt->krb5_fwd_ccache);
+		krb5_context ctx = authctxt->krb5_ctx;
+		krb5_cccol_cursor cursor;
+		krb5_ccache ccache;
+		int ret;
+
+		krb5_cc_destroy(ctx, authctxt->krb5_fwd_ccache);
 		authctxt->krb5_fwd_ccache = NULL;
+
+		ret = krb5_cccol_cursor_new(ctx, &cursor);
+		if (ret)
+			goto out;
+
+		ret = krb5_cccol_cursor_next(ctx, cursor, &ccache);
+		if (ret == 0 && ccache != NULL) {
+			/* There is at least one other ccache in collection
+			 * we can switch to */
+			krb5_cc_switch(ctx, ccache);
+		} else if (authctxt->krb5_ccname != NULL) {
+			/* Clean up the collection too */
+			strncpy(krb5_ccname, authctxt->krb5_ccname, sizeof(krb5_ccname) - 10);
+			krb5_ccname_dir_start = strchr(krb5_ccname, ':') + 1;
+			*krb5_ccname_dir_start++ = '\0';
+			if (strcmp(krb5_ccname, "DIR") == 0) {
+
+				strcat(krb5_ccname_dir_start, "/primary");
+
+				if (stat(krb5_ccname_dir_start, &krb5_ccname_stat) == 0) {
+					if (unlink(krb5_ccname_dir_start) == 0) {
+						krb5_ccname_dir_end = strrchr(krb5_ccname_dir_start, '/');
+						*krb5_ccname_dir_end = '\0';
+						if (rmdir(krb5_ccname_dir_start) == -1)
+							debug("cache dir '%s' remove failed: %s",
+							    krb5_ccname_dir_start, strerror(errno));
+					}
+					else
+						debug("cache primary file '%s', remove failed: %s",
+						    krb5_ccname_dir_start, strerror(errno));
+				}
+			}
+		}
+		krb5_cccol_cursor_free(ctx, &cursor);
 	}
+out:
 	if (authctxt->krb5_user) {
 		krb5_free_principal(authctxt->krb5_ctx, authctxt->krb5_user);
 		authctxt->krb5_user = NULL;
@@ -238,36 +281,189 @@ krb5_cleanup_proc(Authctxt *authctxt)
 	}
 }
 
-#ifndef HEIMDAL
+
+#if !defined(HEIMDAL)
+int
+ssh_asprintf_append(char **dsc, const char *fmt, ...) {
+	char *src, *old;
+	va_list ap;
+	int i;
+
+	va_start(ap, fmt);
+	i = vasprintf(&src, fmt, ap);
+	va_end(ap);
+
+	if (i == -1 || src == NULL)
+		return -1;
+
+	old = *dsc;
+
+	i = asprintf(dsc, "%s%s", *dsc, src);
+	if (i == -1) {
+		*dsc = old;
+		free(src);
+		return -1;
+	}
+
+	free(old);
+	free(src);
+
+	return i;
+}
+
+int
+ssh_krb5_expand_template(char **result, const char *template) {
+	char *p_n, *p_o, *r, *tmp_template;
+
+	debug3_f("called, template = %s", template);
+	if (template == NULL)
+		return -1;
+
+	tmp_template = p_n = p_o = xstrdup(template);
+	r = xstrdup("");
+
+	while ((p_n = strstr(p_o, "%{")) != NULL) {
+
+		*p_n++ = '\0';
+		if (ssh_asprintf_append(&r, "%s", p_o) == -1)
+			goto cleanup;
+
+		if (strncmp(p_n, "{uid}", 5) == 0 || strncmp(p_n, "{euid}", 6) == 0 ||
+			strncmp(p_n, "{USERID}", 8) == 0) {
+			p_o = strchr(p_n, '}') + 1;
+			if (ssh_asprintf_append(&r, "%d", geteuid()) == -1)
+				goto cleanup;
+			continue;
+		}
+		else if (strncmp(p_n, "{TEMP}", 6) == 0) {
+			p_o = strchr(p_n, '}') + 1;
+			if (ssh_asprintf_append(&r, "/tmp") == -1)
+				goto cleanup;
+			continue;
+		} else {
+			p_o = strchr(p_n, '}') + 1;
+			*p_o = '\0';
+			debug_f("unsupported token %s in %s", p_n, template);
+			/* unknown token, fallback to the default */
+			goto cleanup;
+		}
+	}
+
+	if (ssh_asprintf_append(&r, "%s", p_o) == -1)
+		goto cleanup;
+
+	*result = r;
+	free(tmp_template);
+	return 0;
+
+cleanup:
+	free(r);
+	free(tmp_template);
+	return -1;
+}
+
 krb5_error_code
-ssh_krb5_cc_gen(krb5_context ctx, krb5_ccache *ccache) {
-	int tmpfd, ret, oerrno;
-	char ccname[40];
+ssh_krb5_get_cctemplate(krb5_context ctx, char **ccname) {
+	profile_t p;
+	int ret = 0;
+	char *value = NULL;
+
+	debug3_f("called");
+	ret = krb5_get_profile(ctx, &p);
+	if (ret)
+		return ret;
+
+	ret = profile_get_string(p, "libdefaults", "default_ccache_name", NULL, NULL, &value);
+	if (ret || !value)
+		return ret;
+
+	ret = ssh_krb5_expand_template(ccname, value);
+
+	debug3_f("returning with ccname = %s", *ccname);
+	return ret;
+}
+
+krb5_error_code
+ssh_krb5_cc_new_unique(krb5_context ctx, krb5_ccache *ccache, int *need_environment) {
+	int tmpfd, ret, oerrno, type_len;
+	char *ccname = NULL;
 	mode_t old_umask;
+	char *type = NULL, *colon = NULL;
 
-	ret = snprintf(ccname, sizeof(ccname),
-	    "FILE:/tmp/krb5cc_%d_XXXXXXXXXX", geteuid());
-	if (ret < 0 || (size_t)ret >= sizeof(ccname))
-		return ENOMEM;
+	debug3_f("called");
+	if (need_environment)
+		*need_environment = 0;
+	ret = ssh_krb5_get_cctemplate(ctx, &ccname);
+	if (ret || !ccname || options.kerberos_unique_ccache) {
+		/* Otherwise, go with the old method */
+		if (ccname)
+			free(ccname);
+		ccname = NULL;
 
-	old_umask = umask(0177);
-	tmpfd = mkstemp(ccname + strlen("FILE:"));
-	oerrno = errno;
-	umask(old_umask);
-	if (tmpfd == -1) {
-		logit("mkstemp(): %.100s", strerror(oerrno));
-		return oerrno;
-	}
+		ret = asprintf(&ccname,
+		    "FILE:/tmp/krb5cc_%d_XXXXXXXXXX", geteuid());
+		if (ret < 0)
+			return ENOMEM;
 
-	if (fchmod(tmpfd,S_IRUSR | S_IWUSR) == -1) {
+		old_umask = umask(0177);
+		tmpfd = mkstemp(ccname + strlen("FILE:"));
 		oerrno = errno;
-		logit("fchmod(): %.100s", strerror(oerrno));
-		close(tmpfd);
-		return oerrno;
-	}
-	close(tmpfd);
+		umask(old_umask);
+		if (tmpfd == -1) {
+			logit("mkstemp(): %.100s", strerror(oerrno));
+			return oerrno;
+		}
 
-	return (krb5_cc_resolve(ctx, ccname, ccache));
+		if (fchmod(tmpfd,S_IRUSR | S_IWUSR) == -1) {
+			oerrno = errno;
+			logit("fchmod(): %.100s", strerror(oerrno));
+			close(tmpfd);
+			return oerrno;
+		}
+		/* make sure the KRB5CCNAME is set for non-standard location */
+		if (need_environment)
+			*need_environment = 1;
+		close(tmpfd);
+	}
+
+	debug3_f("setting default ccname to %s", ccname);
+	/* set the default with already expanded user IDs */
+	ret = krb5_cc_set_default_name(ctx, ccname);
+	if (ret)
+		return ret;
+
+	if ((colon = strstr(ccname, ":")) != NULL) {
+		type_len = colon - ccname;
+		type = malloc((type_len + 1) * sizeof(char));
+		if (type == NULL)
+			return ENOMEM;
+		strncpy(type, ccname, type_len);
+		type[type_len] = 0;
+	} else {
+		type = strdup(ccname);
+	}
+
+	/* If we have a credential cache from krb5.conf, we need to switch
+	 * a primary cache for this collection, if it supports that (non-FILE)
+	 */
+	if (krb5_cc_support_switch(ctx, type)) {
+		debug3_f("calling cc_new_unique(%s)", ccname);
+		ret = krb5_cc_new_unique(ctx, type, NULL, ccache);
+		free(type);
+		if (ret)
+			return ret;
+
+		debug3_f("calling cc_switch()");
+		return krb5_cc_switch(ctx, *ccache);
+	} else {
+		/* Otherwise, we can not create a unique ccname here (either
+		 * it is already unique from above or the type does not support
+		 * collections
+		 */
+		free(type);
+		debug3_f("calling cc_resolve(%s)", ccname);
+		return (krb5_cc_resolve(ctx, ccname, ccache));
+	}
 }
 #endif /* !HEIMDAL */
 #endif /* KRB5 */
