@@ -76,6 +76,7 @@
 #include "auth-options.h"
 #include "serverloop.h"
 #include "ssherr.h"
+#include "compat.h"
 
 extern ServerOptions options;
 
@@ -721,7 +722,10 @@ server_input_hostkeys_prove(struct ssh *ssh, struct sshbuf **respp)
 			else if (ssh->kex->flags & KEX_RSA_SHA2_256_SUPPORTED)
 				sigalg = "rsa-sha2-256";
 		}
-
+		if (ssh->compat & SSH_RH_RSASIGSHA && sigalg == NULL) {
+			sigalg = "rsa-sha2-512";
+			debug3_f("SHA1 signature is not supported, falling back to %s", sigalg);
+		}
 		debug3_f("sign %s key (index %d) using sigalg %s",
 		    sshkey_type(key), ndx, sigalg == NULL ? "default" : sigalg);
 		if ((r = sshbuf_put_cstring(sigbuf,
