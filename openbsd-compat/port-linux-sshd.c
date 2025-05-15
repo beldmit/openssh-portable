@@ -415,6 +415,28 @@ sshd_selinux_setup_exec_context(char *pwname)
 	debug3_f("done");
 }
 
+void
+sshd_selinux_copy_context(void)
+{
+	security_context_t *ctx;
+
+	if (!ssh_selinux_enabled())
+		return;
+
+	if (getexeccon((security_context_t *)&ctx) != 0) {
+		logit_f("getexeccon failed with %s", strerror(errno));
+		return;
+	}
+	if (ctx != NULL) {
+		/* unset exec context before we will lose this capabililty */
+		if (setexeccon(NULL) != 0)
+			fatal_f("setexeccon failed with %s", strerror(errno));
+		if (setcon(ctx) != 0)
+			fatal_f("setcon failed with %s", strerror(errno));
+		freecon(ctx);
+	}
+}
+
 #endif
 #endif
 

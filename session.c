@@ -1350,7 +1350,7 @@ do_setusercontext(struct passwd *pw)
 
 	platform_setusercontext(pw);
 
-	if (platform_privileged_uidswap()) {
+	if (platform_privileged_uidswap() && !is_child) {
 #ifdef HAVE_LOGIN_CAP
 		if (setusercontext(lc, pw, pw->pw_uid,
 		    (LOGIN_SETALL & ~(LOGIN_SETPATH|LOGIN_SETUSER))) < 0) {
@@ -1382,6 +1382,9 @@ do_setusercontext(struct passwd *pw)
 			    (unsigned long long)pw->pw_uid);
 			chroot_path = percent_expand(tmp, "h", pw->pw_dir,
 			    "u", pw->pw_name, "U", uidstr, (char *)NULL);
+#ifdef WITH_SELINUX
+			sshd_selinux_copy_context();
+#endif
 			safely_chroot(chroot_path, pw->pw_uid);
 			free(tmp);
 			free(chroot_path);
@@ -1417,6 +1420,11 @@ do_setusercontext(struct passwd *pw)
 		/* Permanently switch to the desired uid. */
 		permanently_set_uid(pw);
 #endif
+
+#ifdef WITH_SELINUX
+		if (in_chroot == 0)
+			sshd_selinux_copy_context();
+#endif
 	} else if (options.chroot_directory != NULL &&
 	    strcasecmp(options.chroot_directory, "none") != 0) {
 		fatal("server lacks privileges to chroot to ChrootDirectory");
@@ -1434,9 +1442,6 @@ do_pwchange(Session *s)
 	if (s->ttyfd != -1) {
 		fprintf(stderr,
 		    "You must change your password now and log in again!\n");
-#ifdef WITH_SELINUX
-		setexeccon(NULL);
-#endif
 #ifdef PASSWD_NEEDS_USERNAME
 		execl(_PATH_PASSWD_PROG, "passwd", s->pw->pw_name,
 		    (char *)NULL);
@@ -1649,9 +1654,6 @@ do_child(struct ssh *ssh, Session *s, const char *command)
 		argv[i] = NULL;
 		optind = optreset = 1;
 		__progname = argv[0];
-#ifdef WITH_SELINUX
-		ssh_selinux_change_context("sftpd_t");
-#endif
 		exit(sftp_server_main(i, argv, s->pw));
 	}
 

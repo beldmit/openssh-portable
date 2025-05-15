@@ -23,6 +23,7 @@ void ssh_selinux_setup_pty(char *, const char *);
 void ssh_selinux_change_context(const char *);
 void ssh_selinux_setfscreatecon(const char *);
 
+void sshd_selinux_copy_context(void);
 void sshd_selinux_setup_exec_context(char *);
 #endif
 

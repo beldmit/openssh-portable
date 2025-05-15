@@ -187,6 +187,10 @@ privsep_child_demote(void)
 	if ((box = ssh_sandbox_init(pmonitor)) == NULL)
 		fatal_f("ssh_sandbox_init failed");
 #endif
+#ifdef WITH_SELINUX
+	ssh_selinux_change_context("sshd_net_t");
+#endif
+
 	/* Demote the child */
 	if (privsep_chroot) {
 		/* Change our root directory */
