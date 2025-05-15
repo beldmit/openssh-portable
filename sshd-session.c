@@ -437,7 +437,7 @@ privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
 #endif
 
 	/* New socket pair */
-	monitor_reinit(pmonitor);
+	monitor_reinit(pmonitor, options.chroot_directory);
 
 	pmonitor->m_pid = fork();
 	if (pmonitor->m_pid == -1)
@@ -456,6 +456,11 @@ privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
 
 	close(pmonitor->m_sendfd);
 	pmonitor->m_sendfd = -1;
+	close(pmonitor->m_log_recvfd);
+	pmonitor->m_log_recvfd = -1;
+
+	if (pmonitor->m_log_sendfd != -1)
+		set_log_handler(mm_log_handler, pmonitor);
 
 	/* Demote the private keys to public keys. */
 	demote_sensitive_data();
