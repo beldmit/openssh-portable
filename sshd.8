@@ -286,6 +286,7 @@ Finally, the server and the client enter an authentication dialog.
 The client tries to authenticate itself using
 host-based authentication,
 public key authentication,
+GSSAPI authentication,
 challenge-response authentication,
 or password authentication.
 .Pp
@@ -873,6 +874,12 @@ This file is used in exactly the same way as
 .Pa .rhosts ,
 but allows host-based authentication without permitting login with
 rlogin/rsh.
+.Pp
+.It Pa ~/.k5login
+.It Pa ~/.k5users
+These files enforce GSSAPI/Kerberos authentication access control.
+Further details are described in
+.Xr ksu 1 .
 .Pp
 .It Pa ~/.ssh/
 This directory is the default location for all user-specific configuration
