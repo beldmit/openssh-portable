@@ -278,7 +278,6 @@ ssh_gssapi_krb5_cmdok(krb5_principal principal, const char *name,
 	FILE *fp;
 	char file[MAXPATHLEN];
 	char *line = NULL;
-	char kuser[65]; /* match krb5_kuserok() */
 	struct stat st;
 	struct passwd *pw = the_authctxt->pw;
 	int found_principal = 0;
@@ -288,7 +287,7 @@ ssh_gssapi_krb5_cmdok(krb5_principal principal, const char *name,
 
 	snprintf(file, sizeof(file), "%s/.k5users", pw->pw_dir);
 	/* If both .k5login and .k5users DNE, self-login is ok. */
-	if (!k5login_exists && (access(file, F_OK) == -1)) {
+	if ( !options.enable_k5users || (!k5login_exists && (access(file, F_OK) == -1))) {
                 return ssh_krb5_kuserok(krb_context, principal, luser,
                                         k5login_exists);
 	}
