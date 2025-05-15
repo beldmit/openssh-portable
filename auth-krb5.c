@@ -427,6 +427,7 @@ ssh_krb5_cc_new_unique(krb5_context ctx, krb5_ccache *ccache, int *need_environm
 		umask(old_umask);
 		if (tmpfd == -1) {
 			logit("mkstemp(): %.100s", strerror(oerrno));
+			free(ccname);
 			return oerrno;
 		}
 
@@ -434,6 +435,7 @@ ssh_krb5_cc_new_unique(krb5_context ctx, krb5_ccache *ccache, int *need_environm
 			oerrno = errno;
 			logit("fchmod(): %.100s", strerror(oerrno));
 			close(tmpfd);
+			free(ccname);
 			return oerrno;
 		}
 		/* make sure the KRB5CCNAME is set for non-standard location */
