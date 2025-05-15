@@ -481,5 +481,34 @@ out:
 	free(ccname);
 	return ret;
 }
+
+/*
+ * Reads  k5login_directory  option from the  krb5.conf
+ */
+krb5_error_code
+ssh_krb5_get_k5login_directory(krb5_context ctx, char **k5login_directory) {
+	profile_t p;
+	char *value = NULL;
+	int ret = 0;
+
+	ret = krb5_get_profile(ctx, &p);
+	if (ret)
+		return ret;
+
+	ret = profile_get_string(p, "libdefaults", "k5login_directory", NULL,
+	    NULL, &value);
+	profile_release(p);
+	if (ret)
+		return ret;
+
+	/*
+	 * Hand back a copy allocated by the usual allocator so that the
+	 * caller can free() it without needing the profile API.
+	 */
+	*k5login_directory = value == NULL ? NULL : xstrdup(value);
+	profile_release_string(value);
+
+	return 0;
+}
 #endif /* !HEIMDAL */
 #endif /* KRB5 */
