@@ -1032,6 +1032,14 @@ Specifies whether to automatically destroy the user's ticket cache
 file on logout.
 The default is
 .Cm yes .
+.It Cm KerberosUniqueCCache
+Specifies whether to store the acquired tickets in the per-session credential
+cache under /tmp/ or whether to use per-user credential cache as configured in
+.Pa /etc/krb5.conf .
+The default value
+.Cm no
+can lead to overwriting previous tickets by subseqent connections to the same
+user account.
 .It Cm KexAlgorithms
 Specifies the permitted KEX (Key Exchange) algorithms that the server will
 offer to clients.
