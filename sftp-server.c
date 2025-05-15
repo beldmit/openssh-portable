@@ -1918,7 +1918,7 @@ sftp_server_usage(void)
 }
 
 int
-sftp_server_main(int argc, char **argv, struct passwd *user_pw)
+sftp_server_main(int argc, char **argv, struct passwd *user_pw, int reset_handler)
 {
 	int i, r, in, out, ch, skipargs = 0, log_stderr = 0;
 	ssize_t len, olen;
@@ -1930,7 +1930,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 	extern char *__progname;
 
 	__progname = ssh_get_progname(argv[0]);
-	log_init(__progname, log_level, log_facility, log_stderr);
+	log_init_handler(__progname, log_level, log_facility, log_stderr, reset_handler);
 
 	pw = pwcopy(user_pw);
 
@@ -2003,7 +2003,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 		}
 	}
 
-	log_init(__progname, log_level, log_facility, log_stderr);
+	log_init_handler(__progname, log_level, log_facility, log_stderr, reset_handler);
 
 	/*
 	 * On platforms where we can, avoid making /proc/self/{mem,maps}
