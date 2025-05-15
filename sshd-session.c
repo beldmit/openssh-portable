@@ -1127,6 +1127,10 @@ main(int ac, char **av)
 			    "enabled authentication methods");
 	}
 
+	/* 'UsePAM no' is not supported in our builds */
+	if (! options.use_pam)
+		logit("WARNING: 'UsePAM no' is not supported in this build and may cause several problems.");
+
 #ifdef WITH_OPENSSL
 	if (options.moduli_file != NULL)
 		dh_set_moduli_file(options.moduli_file);
