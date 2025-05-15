@@ -1,6 +1,8 @@
-/* $OpenBSD: mac.h,v 1.10 2016/07/08 03:44:42 djm Exp $ */
+/* $Id: auditstub.c,v 1.1 jfch Exp $ */
+
 /*
- * Copyright (c) 2001 Markus Friedl.  All rights reserved.
+ * Copyright 2010 Red Hat, Inc.  All rights reserved.
+ * Use is subject to license terms.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -21,34 +23,30 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Red Hat author: Jan F. Chadima <jchadima@redhat.com>
  */
-
-#ifndef SSHMAC_H
-#define SSHMAC_H
 
 #include <sys/types.h>
 
-struct sshmac {
-	char	*name;
-	int	enabled;
-	u_int	mac_len;
-	u_char	*key;
-	u_int	key_len;
-	int	type;
-	int	etm;		/* Encrypt-then-MAC */
-	struct ssh_hmac_ctx	*hmac_ctx;
-	struct umac_ctx		*umac_ctx;
-};
+struct ssh;
 
-int	 mac_valid(const char *);
-char	*mac_alg_list(char);
-int	 mac_setup(struct sshmac *, char *);
-int	 mac_init(struct sshmac *);
-int	 mac_compute(struct sshmac *, u_int32_t, const u_char *, int,
-    u_char *, size_t);
-int	 mac_check(struct sshmac *, u_int32_t, const u_char *, size_t,
-    const u_char *, size_t);
-void	 mac_clear(struct sshmac *);
-void	 mac_destroy(struct sshmac *);
+void
+audit_unsupported(struct ssh *ssh, int n)
+{
+}
 
-#endif /* SSHMAC_H */
+void
+audit_kex(struct ssh *ssh, int ctos, char *enc, char *mac, char *comp, char *pfs)
+{
+}
+
+void
+audit_session_key_free(struct ssh *ssh, int ctos)
+{
+}
+
+void
+audit_session_key_free_body(struct ssh *ssh, int ctos, pid_t pid, uid_t uid)
+{
+}

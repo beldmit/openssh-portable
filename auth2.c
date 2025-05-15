@@ -310,9 +310,6 @@ input_userauth_request(int type, u_int32_t seq, struct ssh *ssh)
 			authctxt->valid = 0;
 			/* Invalid user, fake password information */
 			authctxt->pw = fakepw();
-#ifdef SSH_AUDIT_EVENTS
-			mm_audit_event(ssh, SSH_INVALID_USER);
-#endif
 		}
 #ifdef USE_PAM
 		if (options.use_pam)

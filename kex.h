@@ -255,6 +255,8 @@ int	 kexgss_client(struct ssh *);
 int	 kexgss_server(struct ssh *);
 #endif
 
+void	newkeys_destroy(struct newkeys *newkeys);
+
 int	 kex_dh_keypair(struct kex *);
 int	 kex_dh_enc(struct kex *, const struct sshbuf *, struct sshbuf **,
     struct sshbuf **);
