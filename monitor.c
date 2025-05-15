@@ -2007,9 +2007,22 @@ monitor_init(void)
 }
 
 void
-monitor_reinit(struct monitor *mon)
+monitor_reinit(struct monitor *mon, const char *chroot_dir)
 {
-	monitor_openfds(mon, 0);
+	struct stat dev_log_stat;
+	char *dev_log_path;
+	int do_logfds = 0;
+
+	if (chroot_dir != NULL) {
+		xasprintf(&dev_log_path, "%s/dev/log", chroot_dir);
+
+		if (stat(dev_log_path, &dev_log_stat) != 0) {
+			debug_f("/dev/log doesn't exist in %s chroot - will try to log via monitor using [postauth] suffix", chroot_dir);
+			do_logfds = 1;
+		}
+		free(dev_log_path);
+	}
+	monitor_openfds(mon, do_logfds);
 }
 
 #ifdef GSSAPI

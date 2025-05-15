@@ -162,6 +162,7 @@ login_cap_t *lc;
 
 static int is_child = 0;
 static int in_chroot = 0;
+static int have_dev_log = 1;
 
 /* File containing userauth info, if ExposeAuthInfo set */
 static char *auth_info_file = NULL;
@@ -632,6 +633,7 @@ do_exec(struct ssh *ssh, Session *s, const char *command)
 	int ret;
 	const char *forced = NULL, *tty = NULL;
 	char session_type[1024];
+	struct stat dev_log_stat;
 
 	if (options.adm_forced_command) {
 		original_command = command;
@@ -689,6 +691,10 @@ do_exec(struct ssh *ssh, Session *s, const char *command)
 		tty = s->tty;
 		if (strncmp(tty, "/dev/", 5) == 0)
 			tty += 5;
+	}
+
+	if (lstat("/dev/log", &dev_log_stat) != 0) {
+		have_dev_log = 0;
 	}
 
 	verbose("Starting session: %s%s%s for %s from %.200s port %d id %d",
@@ -1469,14 +1475,6 @@ child_close_fds(struct ssh *ssh)
 
 	/* Stop directing logs to a high-numbered fd before we close it */
 	log_redirect_stderr_to(NULL);
-
-	/*
-	 * Close any extra open file descriptors so that we don't have them
-	 * hanging around in clients.  Note that we want to do this after
-	 * initgroups, because at least on Solaris 2.3 it leaves file
-	 * descriptors open.
-	 */
-	closefrom(STDERR_FILENO + 1);
 }
 
 /*
@@ -1609,8 +1607,6 @@ do_child(struct ssh *ssh, Session *s, const char *command)
 			exit(1);
 	}
 
-	closefrom(STDERR_FILENO + 1);
-
 	do_rc_files(ssh, s, shell);
 
 	/* restore SIGPIPE for child */
@@ -1638,8 +1634,16 @@ do_child(struct ssh *ssh, Session *s, const char *command)
 #ifdef WITH_SELINUX
 		ssh_selinux_change_context("sftpd_t");
 #endif
-		exit(sftp_server_main(i, argv, s->pw));
+		exit(sftp_server_main(i, argv, s->pw, have_dev_log));
 	}
+
+	/*
+	 * Close any extra open file descriptors so that we don't have them
+	 * hanging around in clients.  Note that we want to do this after
+	 * initgroups, because at least on Solaris 2.3 it leaves file
+	 * descriptors open.
+	 */
+	closefrom(STDERR_FILENO + 1);
 
 	fflush(NULL);
 
