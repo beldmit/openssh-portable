@@ -111,7 +111,7 @@ int sftp_fsetstat(struct sftp_conn *, const u_char *, u_int, Attrib *);
 int sftp_lsetstat(struct sftp_conn *conn, const char *path, Attrib *a);
 
 /* Canonicalise 'path' - caller must free result */
-char *sftp_realpath(struct sftp_conn *, const char *);
+char *sftp_realpath(struct sftp_conn *, const char *, int);
 
 /* Canonicalisation with tilde expansion (requires server extension) */
 char *sftp_expand_path(struct sftp_conn *, const char *);
@@ -163,7 +163,7 @@ int sftp_upload(struct sftp_conn *, const char *, const char *,
  * times if 'pflag' is set
  */
 int sftp_upload_dir(struct sftp_conn *, const char *, const char *,
-    int, int, int, int, int, int);
+    int, int, int, int, int, int, int);
 
 /*
  * Download a 'from_path' from the 'from' connection and upload it to
