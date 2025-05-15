@@ -93,6 +93,8 @@ void mm_audit_unsupported_body(struct ssh *, int);
 void mm_audit_kex_body(struct ssh *, int, char *, char *, char *, char *, pid_t, uid_t);
 void mm_audit_session_key_free_body(struct ssh *, int, pid_t, uid_t);
 void mm_audit_destroy_sensitive_data(struct ssh *, const char *, pid_t, uid_t);
+int mm_forward_audit_messages(int);
+void mm_set_monitor_pipe(int);
 #endif
 
 struct Session;
