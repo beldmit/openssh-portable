@@ -1161,7 +1161,10 @@ toremote(int argc, char **argv, enum scp_mode_e mode, char *sftp_direct)
 			addargs(&alist, "%s", ssh_program);
 			addargs(&alist, "-x");
 			addargs(&alist, "-oClearAllForwardings=yes");
-			addargs(&alist, "-n");
+			if (isatty(fileno(stdin)))
+				addargs(&alist, "-t");
+			else
+				addargs(&alist, "-n");
 			for (j = 0; j < remote_remote_args.num; j++) {
 				addargs(&alist, "%s",
 				    remote_remote_args.list[j]);
