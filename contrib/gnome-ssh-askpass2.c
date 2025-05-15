@@ -70,8 +70,12 @@ report_failed_grab (GtkWidget *parent_window, const char *what)
 
 	err = gtk_message_dialog_new(GTK_WINDOW(parent_window), 0,
 	    GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
-	    "Could not grab %s. A malicious client may be eavesdropping "
-	    "on your session.", what);
+	    "SSH password dialog could not grab the %s input.\n"
+	    "This might be caused by application such as screensaver, "
+	    "however it could also mean that someone may be eavesdropping "
+	    "on your session.\n"
+	    "Either close the application which grabs the %s or "
+	    "log out and log in again to prevent this from happening.", what, what);
 	gtk_window_set_position(GTK_WINDOW(err), GTK_WIN_POS_CENTER);
 
 	gtk_dialog_run(GTK_DIALOG(err));
