@@ -136,7 +136,7 @@ char *config_file_name = _PATH_SERVER_CONFIG_FILE;
 int debug_flag = 0;
 
 /* Flag indicating that the daemon is being started from inetd. */
-static int inetd_flag = 0;
+int inetd_flag = 0;
 
 /* debug goes to stderr unless inetd_flag is set */
 static int log_stderr = 0;
@@ -1359,7 +1359,9 @@ main(int ac, char **av)
 	}
 #endif
 #ifdef WITH_SELINUX
-	sshd_selinux_setup_exec_context(authctxt->pw->pw_name);
+	sshd_selinux_setup_exec_context(authctxt->pw->pw_name,
+	    inetd_flag, do_pam_putenv, the_authctxt,
+	    options.use_pam);
 #endif
 #ifdef USE_PAM
 	if (options.use_pam) {
