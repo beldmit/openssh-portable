@@ -38,8 +38,12 @@ _EOF
 chmod a+x $OBJ/knownhosts_command
 ${SSH} -F $OBJ/ssh_proxy x true && fail "ssh connect succeeded with bad exit"
 
+PUBKEY_ACCEPTED_ALGOS=`$SSH -G "example.com" | \
+    grep -i "PubkeyAcceptedAlgorithms" | cut -d ' ' -f2- | tr "," "|"`
+SSH_ACCEPTED_HOSTKEY_TYPES=`echo "$SSH_HOSTKEY_TYPES" | tr ' ' '\n' | egrep "$PUBKEY_ACCEPTED_ALGOS"`
+
 cp $OBJ/sshd_proxy $OBJ/sshd_proxy.bak
-for keytype in ${SSH_HOSTKEY_TYPES} ; do
+for keytype in ${SSH_ACCEPTED_HOSTKEY_TYPES} ; do
 	grep -vi HostKeyAlgorithms $OBJ/sshd_proxy.bak > $OBJ/sshd_proxy
 	echo "HostKeyAlgorithms=+$keytype" >> $OBJ/sshd_proxy
 	algs=$keytype
@@ -53,5 +57,5 @@ test "x\$3" = "x$LOGNAME" || die "wrong username \$3 (expected $LOGNAME)"
 grep -- "\$1.*\$2" $OBJ/known_hosts
 _EOF
 	${SSH} -F $OBJ/ssh_proxy -oHostKeyAlgorithms=$algs x true ||
-	    fail "ssh connect failed for keytype $x"
+	    fail "ssh connect failed for keytype $keytype"
 done
