@@ -452,6 +452,27 @@ mm_inform_authserv(char *service, char *style)
 	sshbuf_free(m);
 }
 
+/* Inform the privileged process about role */
+
+#ifdef WITH_SELINUX
+void
+mm_inform_authrole(char *role)
+{
+	int r;
+	struct sshbuf *m;
+
+	debug3_f("entering");
+
+	if ((m = sshbuf_new()) == NULL)
+		fatal_f("sshbuf_new failed");
+	if ((r = sshbuf_put_cstring(m, role ? role : "")) != 0)
+		fatal_f("buffer error: %s", ssh_err(r));
+	mm_request_send(pmonitor->m_recvfd, MONITOR_REQ_AUTHROLE, m);
+
+	sshbuf_free(m);
+}
+#endif
+
 /* Do the password authentication */
 int
 mm_auth_password(struct ssh *ssh, char *password)

@@ -271,6 +271,9 @@ input_userauth_request(int type, u_int32_t seq, struct ssh *ssh)
 	Authctxt *authctxt = ssh->authctxt;
 	Authmethod *m = NULL;
 	char *user = NULL, *service = NULL, *method = NULL, *style = NULL;
+#ifdef WITH_SELINUX
+	char *role = NULL;
+#endif
 	int r, authenticated = 0;
 	double tstart = monotime_double();
 
@@ -283,6 +286,11 @@ input_userauth_request(int type, u_int32_t seq, struct ssh *ssh)
 		goto out;
 	debug("userauth-request for user %s service %s method %s", user, service, method);
 	debug("attempt %d failures %d", authctxt->attempt, authctxt->failures);
+
+#ifdef WITH_SELINUX
+	if ((role = strchr(user, '/')) != NULL)
+		*role++ = 0;
+#endif
 
 	if ((style = strchr(user, ':')) != NULL)
 		*style++ = 0;
@@ -313,7 +321,13 @@ input_userauth_request(int type, u_int32_t seq, struct ssh *ssh)
 		setproctitle("%s [net]", authctxt->valid ? user : "unknown");
 		authctxt->service = xstrdup(service);
 		authctxt->style = style ? xstrdup(style) : NULL;
+#ifdef WITH_SELINUX
+		authctxt->role = role ? xstrdup(role) : NULL;
+#endif
 		mm_inform_authserv(service, style);
+#ifdef WITH_SELINUX
+         	mm_inform_authrole(role);
+#endif
 		userauth_banner(ssh);
 		if ((r = kex_server_update_ext_info(ssh)) != 0)
 			fatal_fr(r, "kex_server_update_ext_info failed");

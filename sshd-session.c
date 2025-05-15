@@ -1358,6 +1358,9 @@ main(int ac, char **av)
 		restore_uid();
 	}
 #endif
+#ifdef WITH_SELINUX
+	sshd_selinux_setup_exec_context(authctxt->pw->pw_name);
+#endif
 #ifdef USE_PAM
 	if (options.use_pam) {
 		do_pam_setcred();

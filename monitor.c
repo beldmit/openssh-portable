@@ -118,6 +118,9 @@ int mm_answer_sign(struct ssh *, int, struct sshbuf *);
 int mm_answer_pwnamallow(struct ssh *, int, struct sshbuf *);
 int mm_answer_auth2_read_banner(struct ssh *, int, struct sshbuf *);
 int mm_answer_authserv(struct ssh *, int, struct sshbuf *);
+#ifdef WITH_SELINUX
+int mm_answer_authrole(struct ssh *, int, struct sshbuf *);
+#endif
 int mm_answer_authpassword(struct ssh *, int, struct sshbuf *);
 int mm_answer_bsdauthquery(struct ssh *, int, struct sshbuf *);
 int mm_answer_bsdauthrespond(struct ssh *, int, struct sshbuf *);
@@ -190,6 +193,9 @@ struct mon_table mon_dispatch_proto20[] = {
     {MONITOR_REQ_SIGN, MON_ONCE, mm_answer_sign},
     {MONITOR_REQ_PWNAM, MON_ONCE, mm_answer_pwnamallow},
     {MONITOR_REQ_AUTHSERV, MON_ONCE, mm_answer_authserv},
+#ifdef WITH_SELINUX
+    {MONITOR_REQ_AUTHROLE, MON_ONCE, mm_answer_authrole},
+#endif
     {MONITOR_REQ_AUTH2_READ_BANNER, MON_ONCE, mm_answer_auth2_read_banner},
     {MONITOR_REQ_AUTHPASSWORD, MON_AUTH, mm_answer_authpassword},
 #ifdef USE_PAM
@@ -825,6 +831,9 @@ mm_answer_pwnamallow(struct ssh *ssh, int sock, struct sshbuf *m)
 
 	/* Allow service/style information on the auth context */
 	monitor_permit(mon_dispatch, MONITOR_REQ_AUTHSERV, 1);
+#ifdef WITH_SELINUX
+	monitor_permit(mon_dispatch, MONITOR_REQ_AUTHROLE, 1);
+#endif
 	monitor_permit(mon_dispatch, MONITOR_REQ_AUTH2_READ_BANNER, 1);
 
 #ifdef USE_PAM
@@ -898,6 +907,26 @@ key_base_type_match(const char *method, const struct sshkey *key,
 	free(ol);
 	return found;
 }
+
+#ifdef WITH_SELINUX
+int
+mm_answer_authrole(struct ssh *ssh, int sock, struct sshbuf *m)
+{
+	int r;
+	monitor_permit_authentications(1);
+
+	if ((r = sshbuf_get_cstring(m, &authctxt->role, NULL)) != 0)
+		fatal_f("buffer error: %s", ssh_err(r));
+	debug3_f("role=%s", authctxt->role);
+
+	if (strlen(authctxt->role) == 0) {
+		free(authctxt->role);
+		authctxt->role = NULL;
+	}
+
+	return (0);
+}
+#endif
 
 int
 mm_answer_authpassword(struct ssh *ssh, int sock, struct sshbuf *m)
@@ -1271,7 +1300,7 @@ monitor_valid_userblob(struct ssh *ssh, const u_char *data, u_int datalen)
 	struct sshbuf *b;
 	struct sshkey *hostkey = NULL;
 	const u_char *p;
-	char *userstyle, *cp;
+	char *userstyle, *s, *cp;
 	size_t len;
 	u_char type;
 	int hostbound = 0, r, fail = 0;
@@ -1302,6 +1331,8 @@ monitor_valid_userblob(struct ssh *ssh, const u_char *data, u_int datalen)
 		fail++;
 	if ((r = sshbuf_get_cstring(b, &cp, NULL)) != 0)
 		fatal_fr(r, "parse userstyle");
+	if ((s = strchr(cp, '/')) != NULL)
+		*s = '\0';
 	xasprintf(&userstyle, "%s%s%s", authctxt->user,
 	    authctxt->style ? ":" : "",
 	    authctxt->style ? authctxt->style : "");
@@ -1352,7 +1383,7 @@ monitor_valid_hostbasedblob(const u_char *data, u_int datalen,
 {
 	struct sshbuf *b;
 	const u_char *p;
-	char *cp, *userstyle;
+	char *cp, *s, *userstyle;
 	size_t len;
 	int r, fail = 0;
 	u_char type;
@@ -1373,6 +1404,8 @@ monitor_valid_hostbasedblob(const u_char *data, u_int datalen,
 		fail++;
 	if ((r = sshbuf_get_cstring(b, &cp, NULL)) != 0)
 		fatal_fr(r, "parse userstyle");
+	if ((s = strchr(cp, '/')) != NULL)
+		*s = '\0';
 	xasprintf(&userstyle, "%s%s%s", authctxt->user,
 	    authctxt->style ? ":" : "",
 	    authctxt->style ? authctxt->style : "");
