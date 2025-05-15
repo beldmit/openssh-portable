@@ -801,7 +801,7 @@ process_put(struct sftp_conn *conn, const char *src, const char *dst,
 		    (rflag || global_rflag)) {
 			if (sftp_upload_dir(conn, g.gl_pathv[i], abs_dst,
 			    pflag || global_pflag, 1, resume,
-			    fflag || global_fflag, 0, 0) == -1)
+			    fflag || global_fflag, 0, 0, 0) == -1)
 				err = -1;
 		} else {
 			if (sftp_upload(conn, g.gl_pathv[i], abs_dst,
@@ -1636,7 +1636,7 @@ parse_dispatch_command(struct sftp_conn *conn, const char *cmd, char **pwd,
 		if (path1 == NULL || *path1 == '\0')
 			path1 = xstrdup(startdir);
 		path1 = sftp_make_absolute(path1, *pwd);
-		if ((tmp = sftp_realpath(conn, path1)) == NULL) {
+		if ((tmp = sftp_realpath(conn, path1, 0)) == NULL) {
 			err = 1;
 			break;
 		}
@@ -2241,7 +2241,7 @@ interactive_loop(struct sftp_conn *conn, char *file1, char *file2)
 	}
 #endif /* USE_LIBEDIT */
 
-	if ((remote_path = sftp_realpath(conn, ".")) == NULL)
+	if ((remote_path = sftp_realpath(conn, ".", 0)) == NULL)
 		fatal("Need cwd");
 	startdir = xstrdup(remote_path);
 
