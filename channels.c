@@ -5052,6 +5052,16 @@ x11_create_display_inet(struct ssh *ssh, int x11_display_offset,
 				debug2_f("bind port %d: %.100s", port,
 				    strerror(errno));
 				close(sock);
+
+				/* do not remove successfully opened
+				 * sockets if the request failed because
+				 * the protocol IPv4/6 is not available
+				 * (e.g. IPv6 may be disabled while being
+				 * supported)
+				 */
+				if (EADDRNOTAVAIL == errno)
+    					continue;
+
 				for (n = 0; n < num_socks; n++)
 					close(socks[n]);
 				num_socks = 0;
