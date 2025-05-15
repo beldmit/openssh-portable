@@ -144,6 +144,7 @@ initialize_server_options(ServerOptions *options)
 	options->gss_strict_acceptor = -1;
 	options->gss_store_rekey = -1;
 	options->gss_kex_algorithms = NULL;
+	options->use_kuserok = -1;
 	options->password_authentication = -1;
 	options->kbd_interactive_authentication = -1;
 	options->permit_empty_passwd = -1;
@@ -397,6 +398,8 @@ fill_default_server_options(ServerOptions *options)
 	if (options->gss_kex_algorithms == NULL)
 		options->gss_kex_algorithms = strdup(GSS_KEX_DEFAULT_KEX);
 #endif
+	if (options->use_kuserok == -1)
+		options->use_kuserok = 1;
 	if (options->password_authentication == -1)
 		options->password_authentication = 1;
 	if (options->kbd_interactive_authentication == -1)
@@ -563,7 +566,7 @@ typedef enum {
 	sPort, sHostKeyFile, sLoginGraceTime,
 	sPermitRootLogin, sLogFacility, sLogLevel, sLogVerbose,
 	sKerberosAuthentication, sKerberosOrLocalPasswd, sKerberosTicketCleanup,
-	sKerberosGetAFSToken, sKerberosUniqueCCache, sPasswordAuthentication,
+	sKerberosGetAFSToken, sKerberosUniqueCCache, sKerberosUseKuserok, sPasswordAuthentication,
 	sKbdInteractiveAuthentication, sListenAddress, sAddressFamily,
 	sPrintMotd, sPrintLastLog, sIgnoreRhosts,
 	sX11Forwarding, sX11DisplayOffset, sX11UseLocalhost,
@@ -655,12 +658,14 @@ static struct {
 	{ "kerberosgetafstoken", sUnsupported, SSHCFG_GLOBAL },
 #endif
 	{ "kerberosuniqueccache", sKerberosUniqueCCache, SSHCFG_GLOBAL },
+	{ "kerberosusekuserok", sKerberosUseKuserok, SSHCFG_ALL },
 #else
 	{ "kerberosauthentication", sUnsupported, SSHCFG_ALL },
 	{ "kerberosorlocalpasswd", sUnsupported, SSHCFG_GLOBAL },
 	{ "kerberosticketcleanup", sUnsupported, SSHCFG_GLOBAL },
 	{ "kerberosgetafstoken", sUnsupported, SSHCFG_GLOBAL },
 	{ "kerberosuniqueccache", sUnsupported, SSHCFG_GLOBAL },
+	{ "kerberosusekuserok", sUnsupported, SSHCFG_ALL },
 #endif
 	{ "kerberostgtpassing", sUnsupported, SSHCFG_GLOBAL },
 	{ "afstokenpassing", sUnsupported, SSHCFG_GLOBAL },
@@ -2426,6 +2431,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 		}
 		break;
 
+	case sKerberosUseKuserok:
+		intptr = &options->use_kuserok;
+		goto parse_flag;
+
 	case sMatch:
 		if (cmdline)
 			fatal("Match directive not supported as a command-line "
@@ -2974,6 +2983,7 @@ copy_set_server_options(ServerOptions *dst, ServerOptions *src, int preauth)
 	M_CP_INTOPT(client_alive_interval);
 	M_CP_INTOPT(ip_qos_interactive);
 	M_CP_INTOPT(ip_qos_bulk);
+	M_CP_INTOPT(use_kuserok);
 	M_CP_INTOPT(rekey_limit);
 	M_CP_INTOPT(rekey_interval);
 	M_CP_INTOPT(log_level);
@@ -3282,6 +3292,7 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sKerberosGetAFSToken, o->kerberos_get_afs_token);
 # endif
 	dump_cfg_fmtint(sKerberosUniqueCCache, o->kerberos_unique_ccache);
+	dump_cfg_fmtint(sKerberosUseKuserok, o->use_kuserok);
 #endif
 #ifdef GSSAPI
 	dump_cfg_fmtint(sGssAuthentication, o->gss_authentication);

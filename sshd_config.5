@@ -1041,6 +1041,10 @@ The default value
 .Cm no
 can lead to overwriting previous tickets by subseqent connections to the same
 user account.
+.It Cm KerberosUseKuserok
+Specifies whether to look at .k5login file for user's aliases.
+The default is
+.Cm yes .
 .It Cm KexAlgorithms
 Specifies the permitted KEX (Key Exchange) algorithms that the server will
 offer to clients.
@@ -1350,6 +1354,7 @@ Available keywords are
 .Cm IPQoS ,
 .Cm KbdInteractiveAuthentication ,
 .Cm KerberosAuthentication ,
+.Cm KerberosUseKuserok ,
 .Cm LogLevel ,
 .Cm MaxAuthTries ,
 .Cm MaxSessions ,
