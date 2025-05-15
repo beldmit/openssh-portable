@@ -680,6 +680,29 @@ do_exec(struct ssh *ssh, Session *s, const char *command)
 		command = auth_opts->force_command;
 		forced = "(key-option)";
 	}
+#ifdef GSSAPI
+#ifdef KRB5 /* k5users_allowed_cmds only available w/ GSSAPI+KRB5 */
+	else if (k5users_allowed_cmds) {
+		const char *match = command;
+		int allowed = 0, i = 0;
+
+		if (!match)
+			match = s->pw->pw_shell;
+		while (k5users_allowed_cmds[i]) {
+			if (strcmp(match, k5users_allowed_cmds[i++]) == 0) {
+				debug("Allowed command '%.900s'", match);
+				allowed = 1;
+				break;
+			}
+		}
+		if (!allowed) {
+			debug("command '%.900s' not allowed", match);
+			return 1;
+		}
+	}
+#endif
+#endif
+
 	s->forced = 0;
 	if (forced != NULL) {
 		s->forced = 1;
