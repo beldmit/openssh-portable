@@ -94,8 +94,8 @@
 #define	NUM_SOCKS	10
 
 /* -- X11 forwarding */
-/* Maximum number of fake X11 displays to try. */
-#define MAX_DISPLAYS  1000
+/* Minimum port number for X11 forwarding */
+#define X11_PORT_MIN 6000
 
 /* Per-channel callback for pre/post IO actions */
 typedef void chan_fn(struct ssh *, Channel *c);
@@ -4994,7 +4994,7 @@ rdynamic_connect_finish(struct ssh *ssh, Channel *c)
  */
 int
 x11_create_display_inet(struct ssh *ssh, int x11_display_offset,
-    int x11_use_localhost, int single_connection,
+    int x11_use_localhost, int x11_max_displays, int single_connection,
     u_int *display_numberp, int **chanids)
 {
 	Channel *nc = NULL;
@@ -5007,10 +5007,15 @@ x11_create_display_inet(struct ssh *ssh, int x11_display_offset,
 	if (chanids == NULL)
 		return -1;
 
+	/* Try to bind ports starting at 6000+X11DisplayOffset */
+	x11_max_displays = x11_max_displays + x11_display_offset;
+
 	for (display_number = x11_display_offset;
-	    display_number < MAX_DISPLAYS;
+	    display_number < x11_max_displays;
 	    display_number++) {
-		port = 6000 + display_number;
+		port = X11_PORT_MIN + display_number;
+		if (port < X11_PORT_MIN) /* overflow */
+			break;
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = ssh->chanctxt->IPv4or6;
 		hints.ai_flags = x11_use_localhost ? 0: AI_PASSIVE;
@@ -5063,7 +5068,7 @@ x11_create_display_inet(struct ssh *ssh, int x11_display_offset,
 		if (num_socks > 0)
 			break;
 	}
-	if (display_number >= MAX_DISPLAYS) {
+	if (display_number >= x11_max_displays || port < X11_PORT_MIN ) {
 		error("Failed to allocate internet-domain X11 display socket.");
 		return -1;
 	}
@@ -5249,7 +5254,7 @@ x11_connect_display(struct ssh *ssh)
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = ssh->chanctxt->IPv4or6;
 	hints.ai_socktype = SOCK_STREAM;
-	snprintf(strport, sizeof strport, "%u", 6000 + display_number);
+	snprintf(strport, sizeof strport, "%u", X11_PORT_MIN + display_number);
 	if ((gaierr = getaddrinfo(buf, strport, &hints, &aitop)) != 0) {
 		error("%.100s: unknown host. (%s)", buf,
 		ssh_gai_strerror(gaierr));
@@ -5265,7 +5270,7 @@ x11_connect_display(struct ssh *ssh)
 		/* Connect it to the display. */
 		if (connect(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
 			debug2("connect %.100s port %u: %.100s", buf,
-			    6000 + display_number, strerror(errno));
+			    X11_PORT_MIN + display_number, strerror(errno));
 			close(sock);
 			continue;
 		}
@@ -5275,7 +5280,7 @@ x11_connect_display(struct ssh *ssh)
 	freeaddrinfo(aitop);
 	if (!ai) {
 		error("connect %.100s port %u: %.100s", buf,
-		    6000 + display_number, strerror(errno));
+		    X11_PORT_MIN + display_number, strerror(errno));
 		return -1;
 	}
 	set_nodelay(sock);
