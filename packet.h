@@ -225,4 +225,5 @@ char	*connection_info_message(struct ssh *ssh);
 # undef EC_POINT
 #endif
 
+void	 packet_destroy_all(struct ssh *, int, int);
 #endif				/* PACKET_H */
