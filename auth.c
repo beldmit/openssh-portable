@@ -499,9 +499,6 @@ getpwnamallow(struct ssh *ssh, const char *user)
 		record_failed_login(ssh, user,
 		    auth_get_canonical_hostname(ssh, options.use_dns), "ssh");
 #endif
-#ifdef SSH_AUDIT_EVENTS
-		audit_event(ssh, SSH_INVALID_USER);
-#endif /* SSH_AUDIT_EVENTS */
 		return (NULL);
 	}
 	if (!allowed_user(ssh, pw))
