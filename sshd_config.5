@@ -739,6 +739,12 @@ Specifies whether to automatically destroy the user's credentials cache
 on logout.
 The default is
 .Cm yes .
+.It Cm GSSAPIEnablek5users
+Specifies whether to look at .k5users file for GSSAPI authentication
+access control. Further details are described in
+.Xr ksu 1 .
+The default is
+.Cm no .
 .It Cm GSSAPIKeyExchange
 Specifies whether key exchange based on GSSAPI is allowed. GSSAPI key exchange
 doesn't rely on ssh keys to verify host identity.
