@@ -129,7 +129,16 @@ userauth_hostbased(struct ssh *ssh, const char *method)
 	/* reconstruct packet */
 	if ((r = sshbuf_put_stringb(b, ssh->kex->session_id)) != 0 ||
 	    (r = sshbuf_put_u8(b, SSH2_MSG_USERAUTH_REQUEST)) != 0 ||
+#ifdef WITH_SELINUX
+	    (authctxt->role
+	    ? ( (r = sshbuf_put_u32(b, strlen(authctxt->user)+strlen(authctxt->role)+1)) != 0 ||
+	        (r = sshbuf_put(b, authctxt->user, strlen(authctxt->user))) != 0 ||
+	        (r = sshbuf_put_u8(b, '/') != 0) ||
+	        (r = sshbuf_put(b, authctxt->role, strlen(authctxt->role))) != 0)
+	    : (r = sshbuf_put_cstring(b, authctxt->user)) != 0) ||
+#else
 	    (r = sshbuf_put_cstring(b, authctxt->user)) != 0 ||
+#endif
 	    (r = sshbuf_put_cstring(b, authctxt->service)) != 0 ||
 	    (r = sshbuf_put_cstring(b, method)) != 0 ||
 	    (r = sshbuf_put_string(b, pkalg, alen)) != 0 ||
