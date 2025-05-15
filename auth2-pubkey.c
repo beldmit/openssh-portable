@@ -72,6 +72,8 @@
 
 /* import */
 extern ServerOptions options;
+extern int inetd_flag;
+extern Authctxt *the_authctxt;
 extern struct authmethod_cfg methodcfg_pubkey;
 
 static char *
@@ -449,7 +451,8 @@ match_principals_command(struct passwd *user_pw, const struct sshkey *key,
 	if ((pid = subprocess("AuthorizedPrincipalsCommand", command,
 	    ac, av, &f,
 	    SSH_SUBPROCESS_STDOUT_CAPTURE|SSH_SUBPROCESS_STDERR_DISCARD,
-	    runas_pw, temporarily_use_uid, restore_uid)) == 0)
+	    runas_pw, temporarily_use_uid, restore_uid,
+	    inetd_flag, the_authctxt)) == 0)
 		goto out;
 
 	uid_swapped = 1;
@@ -719,7 +722,8 @@ user_key_command_allowed2(struct passwd *user_pw, struct sshkey *key,
 	if ((pid = subprocess("AuthorizedKeysCommand", command,
 	    ac, av, &f,
 	    SSH_SUBPROCESS_STDOUT_CAPTURE|SSH_SUBPROCESS_STDERR_DISCARD,
-	    runas_pw, temporarily_use_uid, restore_uid)) == 0)
+	    runas_pw, temporarily_use_uid, restore_uid,
+	    inetd_flag, the_authctxt)) == 0)
 		goto out;
 
 	uid_swapped = 1;

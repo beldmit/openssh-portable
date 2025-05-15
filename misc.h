@@ -122,7 +122,7 @@ typedef void privrestore_fn(void);
 #define	SSH_SUBPROCESS_UNSAFE_PATH	(1<<3)	/* Don't check for safe cmd */
 #define	SSH_SUBPROCESS_PRESERVE_ENV	(1<<4)	/* Keep parent environment */
 pid_t subprocess(const char *, const char *, int, char **, FILE **, u_int,
-    struct passwd *, privdrop_fn *, privrestore_fn *);
+    struct passwd *, privdrop_fn *, privrestore_fn *, int, void *);
 
 typedef struct arglist arglist;
 struct arglist {

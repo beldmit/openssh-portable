@@ -2763,7 +2763,8 @@ stdfd_devnull(int do_stdin, int do_stdout, int do_stderr)
 pid_t
 subprocess(const char *tag, const char *command,
     int ac, char **av, FILE **child, u_int flags,
-    struct passwd *pw, privdrop_fn *drop_privs, privrestore_fn *restore_privs)
+    struct passwd *pw, privdrop_fn *drop_privs,
+    privrestore_fn *restore_privs, int inetd, void *the_authctxt)
 {
 	FILE *f = NULL;
 	struct stat st;
@@ -2897,7 +2898,7 @@ subprocess(const char *tag, const char *command,
 			_exit(1);
 		}
 #ifdef WITH_SELINUX
-		if (sshd_selinux_setup_env_variables() < 0) {
+		if (sshd_selinux_setup_env_variables(inetd, the_authctxt) < 0) {
 			error ("failed to copy environment:  %s",
 			    strerror(errno));
 			_exit(127);
