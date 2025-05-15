@@ -55,7 +55,7 @@ platform_setusercontext(struct passwd *pw)
 {
 #ifdef WITH_SELINUX
 	/* Cache selinux status for later use */
-	(void)ssh_selinux_enabled();
+	(void)sshd_selinux_enabled();
 #endif
 
 #ifdef USE_SOLARIS_PROJECTS

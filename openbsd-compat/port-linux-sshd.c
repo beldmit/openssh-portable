@@ -52,6 +52,20 @@ extern ServerOptions options;
 extern Authctxt *the_authctxt;
 extern int inetd_flag;
 
+/* Wrapper around is_selinux_enabled() to log its return value once only */
+int
+sshd_selinux_enabled(void)
+{
+	static int enabled = -1;
+
+	if (enabled == -1) {
+		enabled = (is_selinux_enabled() == 1);
+		debug("SELinux support %s", enabled ? "enabled" : "disabled");
+	}
+
+	return (enabled);
+}
+
 /* Send audit message */
 static int
 sshd_selinux_send_audit_message(int success, security_context_t default_context,
@@ -317,7 +331,7 @@ sshd_selinux_getctxbyname(char *pwname,
 
 /* Setup environment variables for pam_selinux */
 static int
-sshd_selinux_setup_pam_variables(void)
+sshd_selinux_setup_variables(int(*set_it)(char *, const char *))
 {
 	const char *reqlvl;
 	char *role;
@@ -328,21 +342,39 @@ sshd_selinux_setup_pam_variables(void)
 
 	ssh_selinux_get_role_level(&role, &reqlvl);
 
-	rv = do_pam_putenv("SELINUX_ROLE_REQUESTED", role ? role : "");
+	rv = set_it("SELINUX_ROLE_REQUESTED", role ? role : "");
 
 	if (inetd_flag) {
 		use_current = "1";
 	} else {
 		use_current = "";
-		rv = rv || do_pam_putenv("SELINUX_LEVEL_REQUESTED", reqlvl ? reqlvl: "");
+		rv = rv || set_it("SELINUX_LEVEL_REQUESTED", reqlvl ? reqlvl: "");
 	}
 
-	rv = rv || do_pam_putenv("SELINUX_USE_CURRENT_RANGE", use_current);
+	rv = rv || set_it("SELINUX_USE_CURRENT_RANGE", use_current);
 
 	if (role != NULL)
 		free(role);
 
 	return rv;
+}
+
+static int
+sshd_selinux_setup_pam_variables(void)
+{
+	return sshd_selinux_setup_variables(do_pam_putenv);
+}
+
+static int
+do_setenv(char *name, const char *value)
+{
+	return setenv(name, value, 1);
+}
+
+int
+sshd_selinux_setup_env_variables(void)
+{
+	return sshd_selinux_setup_variables(do_setenv);
 }
 
 /* Set the execution context to the default for the specified user */
@@ -353,7 +385,7 @@ sshd_selinux_setup_exec_context(char *pwname)
 	int r = 0;
 	security_context_t default_ctx = NULL;
 
-	if (!ssh_selinux_enabled())
+	if (!sshd_selinux_enabled())
 		return;
 
 	if (options.use_pam) {
