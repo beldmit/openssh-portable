@@ -880,6 +880,10 @@ rlogin/rsh.
 These files enforce GSSAPI/Kerberos authentication access control.
 Further details are described in
 .Xr ksu 1 .
+The location of the k5login file depends on the configuration option
+.Cm k5login_directory
+in the
+.Xr krb5.conf 5 .
 .Pp
 .It Pa ~/.ssh/
 This directory is the default location for all user-specific configuration
