@@ -1003,7 +1003,7 @@ sftp_fsetstat(struct sftp_conn *conn, const u_char *handle, u_int handle_len,
 
 /* Implements both the realpath and expand-path operations */
 static char *
-sftp_realpath_expand(struct sftp_conn *conn, const char *path, int expand)
+sftp_realpath_expand(struct sftp_conn *conn, const char *path, int expand, int create_dir)
 {
 	struct sshbuf *msg;
 	u_int expected_id, count, id;
@@ -1049,11 +1049,43 @@ sftp_realpath_expand(struct sftp_conn *conn, const char *path, int expand)
 		if ((r = sshbuf_get_u32(msg, &status)) != 0 ||
 		    (r = sshbuf_get_cstring(msg, &errmsg, NULL)) != 0)
 			fatal_fr(r, "parse status");
-		error("%s %s: %s", expand ? "expand" : "realpath",
-		    path, *errmsg == '\0' ? fx2txt(status) : errmsg);
-		free(errmsg);
-		sshbuf_free(msg);
-		return NULL;
+		if ((status == SSH2_FX_NO_SUCH_FILE) && create_dir)  {
+			memset(&a, '\0', sizeof(a));
+			if ((r = sftp_mkdir(conn, path, &a, 0)) != 0) {
+				sshbuf_free(msg);
+				return NULL;
+			}
+			debug2("Sending SSH2_FXP_REALPATH \"%s\" - create dir", path);
+			send_string_request(conn, id, SSH2_FXP_REALPATH,
+					path, strlen(path));
+
+			get_msg(conn, msg);
+			if ((r = sshbuf_get_u8(msg, &type)) != 0 ||
+			    (r = sshbuf_get_u32(msg, &id)) != 0)
+				fatal_fr(r, "parse");
+
+			if (id != expected_id)
+				fatal("ID mismatch (%u != %u)", id, expected_id);
+
+			if (type == SSH2_FXP_STATUS) {
+				free(errmsg);
+
+				if ((r = sshbuf_get_u32(msg, &status)) != 0 ||
+				    (r = sshbuf_get_cstring(msg, &errmsg, NULL)) != 0)
+					fatal_fr(r, "parse status");
+				error("%s %s: %s", expand ? "expand" : "realpath",
+				    path, *errmsg == '\0' ? fx2txt(status) : errmsg);
+				free(errmsg);
+				sshbuf_free(msg);
+				return NULL;
+			}
+		} else {
+			error("%s %s: %s", expand ? "expand" : "realpath",
+			    path, *errmsg == '\0' ? fx2txt(status) : errmsg);
+			free(errmsg);
+			sshbuf_free(msg);
+			return NULL;
+		}
 	} else if (type != SSH2_FXP_NAME)
 		fatal("Expected SSH2_FXP_NAME(%u) packet, got %u",
 		    SSH2_FXP_NAME, type);
@@ -1078,9 +1110,9 @@ sftp_realpath_expand(struct sftp_conn *conn, const char *path, int expand)
 }
 
 char *
-sftp_realpath(struct sftp_conn *conn, const char *path)
+sftp_realpath(struct sftp_conn *conn, const char *path, int create_dir)
 {
-	return sftp_realpath_expand(conn, path, 0);
+	return sftp_realpath_expand(conn, path, 0, create_dir);
 }
 
 int
@@ -1094,9 +1126,9 @@ sftp_expand_path(struct sftp_conn *conn, const char *path)
 {
 	if (!sftp_can_expand_path(conn)) {
 		debug3_f("no server support, fallback to realpath");
-		return sftp_realpath_expand(conn, path, 0);
+		return sftp_realpath_expand(conn, path, 0, 0);
 	}
-	return sftp_realpath_expand(conn, path, 1);
+	return sftp_realpath_expand(conn, path, 1, 0);
 }
 
 int
@@ -2016,7 +2048,7 @@ sftp_download_dir(struct sftp_conn *conn, const char *src, const char *dst,
 	char *src_canon;
 	int ret;
 
-	if ((src_canon = sftp_realpath(conn, src)) == NULL) {
+	if ((src_canon = sftp_realpath(conn, src, 0)) == NULL) {
 		error("download \"%s\": path canonicalization failed", src);
 		return -1;
 	}
@@ -2365,12 +2397,12 @@ upload_dir_internal(struct sftp_conn *conn, const char *src, const char *dst,
 int
 sftp_upload_dir(struct sftp_conn *conn, const char *src, const char *dst,
     int preserve_flag, int print_flag, int resume, int fsync_flag,
-    int follow_link_flag, int inplace_flag)
+    int follow_link_flag, int inplace_flag, int create_dir)
 {
 	char *dst_canon;
 	int ret;
 
-	if ((dst_canon = sftp_realpath(conn, dst)) == NULL) {
+	if ((dst_canon = sftp_realpath(conn, dst, create_dir)) == NULL) {
 		error("upload \"%s\": path canonicalization failed", dst);
 		return -1;
 	}
@@ -2825,7 +2857,7 @@ sftp_crossload_dir(struct sftp_conn *from, struct sftp_conn *to,
 	char *from_path_canon;
 	int ret;
 
-	if ((from_path_canon = sftp_realpath(from, from_path)) == NULL) {
+	if ((from_path_canon = sftp_realpath(from, from_path, 0)) == NULL) {
 		error("crossload \"%s\": path canonicalization failed",
 		    from_path);
 		return -1;
