@@ -16,7 +16,7 @@
 
 #include "includes.h"
 
-#if !defined(HAVE_CLOSEFROM) || defined(BROKEN_CLOSEFROM)
+#if !defined(HAVE_CLOSEFROM) || defined(BROKEN_CLOSEFROM) || (defined __s390__)
 
 #include <sys/types.h>
 #include <unistd.h>
