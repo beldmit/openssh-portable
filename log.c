@@ -194,6 +194,11 @@ void
 log_init(const char *av0, LogLevel level, SyslogFacility facility,
     int on_stderr)
 {
+	log_init_handler(av0, level, facility, on_stderr, 1);
+}
+
+void
+log_init_handler(const char *av0, LogLevel level, SyslogFacility facility, int on_stderr, int reset_handler) {
 #if defined(HAVE_OPENLOG_R) && defined(SYSLOG_DATA_INIT)
 	struct syslog_data sdata = SYSLOG_DATA_INIT;
 #endif
@@ -206,8 +211,10 @@ log_init(const char *av0, LogLevel level, SyslogFacility facility,
 		exit(1);
 	}
 
-	log_handler = NULL;
-	log_handler_ctx = NULL;
+	if (reset_handler) {
+		log_handler = NULL;
+		log_handler_ctx = NULL;
+	}
 
 	log_on_stderr = on_stderr;
 	if (on_stderr)
