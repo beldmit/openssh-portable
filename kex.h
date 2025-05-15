@@ -38,6 +38,9 @@
 #include <openssl/dh.h>
 #include <openssl/ec.h>
 #include <openssl/ecdsa.h>
+#include <openssl/evp.h>
+#include <openssl/core_names.h>
+#include <openssl/param_build.h>
 #else /* OPENSSL */
 #define BIGNUM		void
 #define DH		void
@@ -322,6 +325,9 @@ int	kexc25519_shared_key_ext(const u_char key[CURVE25519_SIZE],
     const u_char pub[CURVE25519_SIZE], struct sshbuf *out, int)
 	__attribute__((__bounded__(__minbytes__, 1, CURVE25519_SIZE)))
 	__attribute__((__bounded__(__minbytes__, 2, CURVE25519_SIZE)));
+int	kex_create_evp_dh(EVP_PKEY **, const BIGNUM *, const BIGNUM *,
+    const BIGNUM *, const BIGNUM *, const BIGNUM *);
+int    kex_create_evp_ec(EC_KEY *k, int ecdsa_nid, EVP_PKEY **pkey);
 
 #if defined(DEBUG_KEX) || defined(DEBUG_KEXDH) || defined(DEBUG_KEXECDH)
 void	dump_digest(const char *, const u_char *, int);
