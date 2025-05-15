@@ -1614,3 +1614,142 @@ kex_exchange_identification(struct ssh *ssh, int timeout_ms,
 	return r;
 }
 
+#ifdef WITH_OPENSSL
+/* 
+ * Creates an EVP_PKEY from the given parameters and keys.
+ * The private key can be omitted.
+ */
+EVP_PKEY *
+sshkey_create_evp(OSSL_PARAM_BLD *param_bld, EVP_PKEY_CTX *ctx)
+{
+  	EVP_PKEY *ret = NULL;
+  	OSSL_PARAM *params = NULL;
+  	if (param_bld == NULL || ctx == NULL) {
+  		debug2_f("param_bld or ctx is NULL");
+  		return NULL;
+  	}
+  	if ((params = OSSL_PARAM_BLD_to_param(param_bld)) == NULL) {
+  		debug2_f("Could not build param list");
+  		return NULL;
+  	}
+  	if (EVP_PKEY_fromdata_init(ctx) != 1 ||
+  	    EVP_PKEY_fromdata(ctx, &ret, EVP_PKEY_KEYPAIR, params) != 1) {
+  		debug2_f("EVP_PKEY_fromdata failed");
+  		OSSL_PARAM_free(params);
+  		return NULL;
+  	}
+  	return ret;
+}
+
+int
+kex_create_evp_ec(EC_KEY *k, int ecdsa_nid, EVP_PKEY **pkey)
+{
+	OSSL_PARAM_BLD *param_bld = NULL;
+	EVP_PKEY_CTX *ctx = NULL;
+  	BN_CTX *bn_ctx = NULL;
+  	uint8_t *pub_ser = NULL;
+  	const char *group_name;
+  	const EC_POINT *pub = NULL;
+  	const BIGNUM *priv = NULL;
+  	int ret = 0;
+
+	if (k == NULL)
+    		return SSH_ERR_INVALID_ARGUMENT;
+  	if ((ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL)) == NULL ||
+      	    (param_bld = OSSL_PARAM_BLD_new()) == NULL ||
+      	    (bn_ctx = BN_CTX_new()) == NULL) {
+    		ret = SSH_ERR_ALLOC_FAIL;
+    		goto out;
+  	}
+
+	if ((group_name = OSSL_EC_curve_nid2name(ecdsa_nid)) == NULL ||
+     	    OSSL_PARAM_BLD_push_utf8_string(param_bld,
+                OSSL_PKEY_PARAM_GROUP_NAME,
+                group_name,
+                strlen(group_name)) != 1) {
+    		ret = SSH_ERR_LIBCRYPTO_ERROR;
+    		goto out;
+	}
+  	if ((pub = EC_KEY_get0_public_key(k)) != NULL) {
+    		const EC_GROUP *group;
+    		size_t len;
+
+		group = EC_KEY_get0_group(k);
+		len = EC_POINT_point2oct(group, pub,
+		    POINT_CONVERSION_UNCOMPRESSED, NULL, 0, NULL);
+		if ((pub_ser = malloc(len)) == NULL) {
+			ret = SSH_ERR_ALLOC_FAIL;
+			goto out;
+		}
+		EC_POINT_point2oct(group,
+		    pub,
+		    POINT_CONVERSION_UNCOMPRESSED,
+		    pub_ser,
+		    len,
+		    bn_ctx);
+		if (OSSL_PARAM_BLD_push_octet_string(param_bld,
+		    OSSL_PKEY_PARAM_PUB_KEY,
+		    pub_ser,
+		    len) != 1) {
+			ret = SSH_ERR_LIBCRYPTO_ERROR;
+			goto out;
+		}
+	}
+  	if ((priv = EC_KEY_get0_private_key(k)) != NULL &&
+	    OSSL_PARAM_BLD_push_BN(param_bld,
+               OSSL_PKEY_PARAM_PRIV_KEY, priv) != 1) {
+		ret = SSH_ERR_LIBCRYPTO_ERROR;
+		goto out;
+  	}
+  	if ((*pkey = sshkey_create_evp(param_bld, ctx)) == NULL) {
+    		ret = SSH_ERR_LIBCRYPTO_ERROR;
+    		goto out;
+  	}
+
+out:
+  	OSSL_PARAM_BLD_free(param_bld);
+  	EVP_PKEY_CTX_free(ctx);
+  	BN_CTX_free(bn_ctx);
+  	free(pub_ser);
+  	return ret;
+}
+
+int
+kex_create_evp_dh(EVP_PKEY **pkey, const BIGNUM *p, const BIGNUM *q,
+    const BIGNUM *g, const BIGNUM *pub, const BIGNUM *priv)
+{
+	OSSL_PARAM_BLD *param_bld = NULL;
+	EVP_PKEY_CTX *ctx = NULL;
+	int r = 0;
+
+	/* create EVP_PKEY-DH key */
+	if ((ctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL)) == NULL ||
+	    (param_bld = OSSL_PARAM_BLD_new()) == NULL) {
+		error_f("EVP_PKEY_CTX or PARAM_BLD init failed");
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+	if (OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) != 1 ||
+	    OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_Q, q) != 1 ||
+	    OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g) != 1 ||
+	    OSSL_PARAM_BLD_push_BN(param_bld,
+	        OSSL_PKEY_PARAM_PUB_KEY, pub) != 1) {
+		error_f("Failed pushing params to OSSL_PARAM_BLD");
+		r = SSH_ERR_LIBCRYPTO_ERROR;
+		goto out;
+	}
+	if (priv != NULL &&
+	    OSSL_PARAM_BLD_push_BN(param_bld,
+	        OSSL_PKEY_PARAM_PRIV_KEY, priv) != 1) {
+		error_f("Failed pushing private key to OSSL_PARAM_BLD");
+		r = SSH_ERR_LIBCRYPTO_ERROR;
+		goto out;
+	}
+	if ((*pkey = sshkey_create_evp(param_bld, ctx)) == NULL)
+		r = SSH_ERR_LIBCRYPTO_ERROR;
+out:
+	OSSL_PARAM_BLD_free(param_bld);
+	EVP_PKEY_CTX_free(ctx);
+	return r;
+}
+#endif /* WITH_OPENSSL */
