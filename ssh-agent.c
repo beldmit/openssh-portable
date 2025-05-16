@@ -1377,6 +1377,8 @@ process_add_identity(SocketEntry *e)
 	if ((r = sshkey_private_deserialize(e->request, &k)) != 0 ||
 	    k == NULL ||
 	    (r = sshbuf_get_cstring(e->request, &comment, NULL)) != 0) {
+		if (!r) /* k == NULL */
+			r = SSH_ERR_INTERNAL_ERROR;
 		error_fr(r, "parse");
 		goto out;
 	}
