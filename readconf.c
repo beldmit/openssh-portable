@@ -43,6 +43,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <openssl/fips.h>
 #ifdef USE_SYSTEM_GLOB
 # include <glob.h>
 #else
@@ -3043,11 +3044,16 @@ fill_default_options(Options * options)
 	all_key = sshkey_alg_list(0, 0, 1, ',');
 	all_sig = sshkey_alg_list(0, 1, 1, ',');
 	/* remove unsupported algos from default lists */
-	def_cipher = match_filter_allowlist(KEX_CLIENT_ENCRYPT, all_cipher);
-	def_mac = match_filter_allowlist(KEX_CLIENT_MAC, all_mac);
-	def_kex = match_filter_allowlist(KEX_CLIENT_KEX, all_kex);
-	def_key = match_filter_allowlist(KEX_DEFAULT_PK_ALG, all_key);
-	def_sig = match_filter_allowlist(SSH_ALLOWED_CA_SIGALGS, all_sig);
+	def_cipher = match_filter_allowlist((FIPS_mode() ?
+	    KEX_FIPS_ENCRYPT : KEX_CLIENT_ENCRYPT), all_cipher);
+	def_mac = match_filter_allowlist((FIPS_mode() ?
+	    KEX_FIPS_MAC : KEX_CLIENT_MAC), all_mac);
+	def_kex = match_filter_allowlist((FIPS_mode() ?
+	    KEX_DEFAULT_KEX_FIPS : KEX_CLIENT_KEX), all_kex);
+	def_key = match_filter_allowlist((FIPS_mode() ?
+	    KEX_FIPS_PK_ALG : KEX_DEFAULT_PK_ALG), all_key);
+	def_sig = match_filter_allowlist((FIPS_mode() ?
+	    KEX_FIPS_PK_ALG : SSH_ALLOWED_CA_SIGALGS), all_sig);
 #define ASSEMBLE(what, defaults, all) \
 	do { \
 		if ((r = kex_assemble_names(&options->what, \

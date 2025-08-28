@@ -35,6 +35,7 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
+#include <openssl/fips.h>
 #endif
 
 #include "crypto_api.h"
@@ -59,6 +60,7 @@
 #define SSHKEY_INTERNAL
 #include "sshkey.h"
 #include "match.h"
+#include "log.h"
 #include "ssh-sk.h"
 
 #ifdef WITH_XMSS
@@ -408,6 +410,18 @@ sshkey_alg_list(int certs_only, int plain_only, int include_sigonly, char sep)
 		impl = keyimpls[i];
 		if (impl->name == NULL || impl->type == KEY_NULL)
 			continue;
+		if (FIPS_mode()) {
+			switch (impl->type) {
+			case KEY_ED25519:
+			case KEY_ED25519_SK:
+			case KEY_ED25519_CERT:
+			case KEY_ED25519_SK_CERT:
+			     continue;
+			     break;
+			default:
+			     break;
+			}
+		}
 		if (!include_sigonly && impl->sigonly)
 			continue;
 		if ((certs_only && !impl->cert) || (plain_only && impl->cert))
@@ -1441,6 +1455,20 @@ sshkey_read(struct sshkey *ret, char **cpp)
 		return SSH_ERR_EC_CURVE_MISMATCH;
 	}
 
+	switch (type) {
+	case KEY_ED25519:
+	case KEY_ED25519_SK:
+	case KEY_ED25519_CERT:
+	case KEY_ED25519_SK_CERT:
+		if (FIPS_mode()) {
+		    sshkey_free(k);
+		    logit_f("Ed25519 keys are not allowed in FIPS mode");
+		    return SSH_ERR_INVALID_ARGUMENT;
+		}
+		break;
+	default:
+		break;
+	}
 	/* Fill in ret from parsed key */
 	sshkey_free_contents(ret);
 	*ret = *k;
@@ -2275,6 +2303,11 @@ sshkey_sign(struct sshkey *key,
 		*lenp = 0;
 	if (datalen > SSH_KEY_MAX_SIGN_DATA_SIZE)
 		return SSH_ERR_INVALID_ARGUMENT;
+	if (FIPS_mode() && ((key->type == KEY_ED25519_SK) || (key->type == KEY_ED25519_SK_CERT))) {
+	    logit_f("Ed25519 keys are not allowed in FIPS mode");
+	    return SSH_ERR_INVALID_ARGUMENT;
+	}
+	/* Fallthrough */
 	if ((impl = sshkey_impl_from_key(key)) == NULL)
 		return SSH_ERR_KEY_TYPE_UNKNOWN;
 	if ((r = sshkey_unshield_private(key)) != 0)
@@ -2311,6 +2344,10 @@ sshkey_verify(const struct sshkey *key,
 		*detailsp = NULL;
 	if (siglen == 0 || dlen > SSH_KEY_MAX_SIGN_DATA_SIZE)
 		return SSH_ERR_INVALID_ARGUMENT;
+	if (FIPS_mode() && ((key->type == KEY_ED25519_SK) || (key->type == KEY_ED25519_SK_CERT))) {
+	    logit_f("Ed25519 keys are not allowed in FIPS mode");
+	    return SSH_ERR_INVALID_ARGUMENT;
+	}
 	if ((impl = sshkey_impl_from_key(key)) == NULL)
 		return SSH_ERR_KEY_TYPE_UNKNOWN;
 	return impl->funcs->verify(key, sig, siglen, data, dlen,
