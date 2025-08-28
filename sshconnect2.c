@@ -45,6 +45,8 @@
 #include <vis.h>
 #endif
 
+#include <openssl/fips.h>
+
 #include "openbsd-compat/sys-queue.h"
 
 #include "xmalloc.h"
@@ -262,6 +264,9 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr *hostaddr, u_short port,
 
 #if defined(GSSAPI) && defined(WITH_OPENSSL)
 	if (options.gss_keyex) {
+		char * gss_kex_filtered = FIPS_mode() ?
+			 match_filter_allowlist(options.gss_kex_algorithms, GSS_KEX_DEFAULT_KEX_FIPS) : xstrdup(options.gss_kex_algorithms);
+
 		/* Add the GSSAPI mechanisms currently supported on this
 		 * client to the key exchange algorithm proposal */
 		orig = myproposal[PROPOSAL_KEX_ALGS];
@@ -281,7 +286,9 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr *hostaddr, u_short port,
 		}
 
 		gss = ssh_gssapi_client_mechanisms(gss_host,
-		    options.gss_client_identity, options.gss_kex_algorithms);
+		    options.gss_client_identity, gss_kex_filtered);
+		free(gss_kex_filtered);
+
 		if (gss) {
 			debug("Offering GSSAPI proposal: %s", gss);
 			xasprintf(&myproposal[PROPOSAL_KEX_ALGS],

@@ -22,6 +22,7 @@
 #include "openbsd-compat/openssl-compat.h"
 #include <openssl/bn.h>
 #include <openssl/evp.h>
+#include <openssl/fips.h>
 #include <openssl/pem.h>
 #endif
 
@@ -68,6 +69,7 @@
 #endif
 
 #define DEFAULT_KEY_TYPE_NAME "ed25519"
+#define FIPS_DEFAULT_KEY_TYPE_NAME "rsa"
 
 /*
  * Default number of bits in the RSA and ECDSA keys.  These value can be
@@ -195,6 +197,10 @@ type_bits_valid(int type, const char *name, u_int32_t *bitsp)
 #endif
 	}
 #ifdef WITH_OPENSSL
+	if (FIPS_mode()) {
+		if (type == KEY_ED25519 || type == KEY_ED25519_SK)
+			fatal("ED25519 keys are not allowed in FIPS mode");
+	}
 	switch (type) {
 	case KEY_RSA:
 		if (*bitsp < SSH_RSA_MINIMUM_MODULUS_SIZE)
@@ -248,7 +254,7 @@ ask_filename(struct passwd *pw, const char *prompt)
 	char *name = NULL;
 
 	if (key_type_name == NULL)
-		name = _PATH_SSH_CLIENT_ID_ED25519;
+		name = FIPS_mode() ? _PATH_SSH_CLIENT_ID_RSA : _PATH_SSH_CLIENT_ID_ED25519;
 	else {
 		switch (sshkey_type_from_shortname(key_type_name)) {
 #ifdef OPENSSL_HAS_ECC
@@ -1057,9 +1063,17 @@ do_gen_all_hostkeys(struct passwd *pw)
 			first = 1;
 			printf("%s: generating new host keys: ", __progname);
 		}
+		type = sshkey_type_from_shortname(key_types[i].key_type);
+
+		/* Skip the keys that are not supported in FIPS mode */
+		if (FIPS_mode() && type == KEY_ED25519) {
+			logit("Skipping %s key in FIPS mode",
+			    key_types[i].key_type_display);
+			goto next;
+		}
+
 		printf("%s ", key_types[i].key_type_display);
 		fflush(stdout);
-		type = sshkey_type_from_shortname(key_types[i].key_type);
 		if ((fd = mkstemp(prv_tmp)) == -1) {
 			error("Could not save your private key in %s: %s",
 			    prv_tmp, strerror(errno));
@@ -3757,7 +3771,7 @@ main(int argc, char **argv)
 	}
 
 	if (key_type_name == NULL)
-		key_type_name = DEFAULT_KEY_TYPE_NAME;
+		key_type_name = FIPS_mode() ? FIPS_DEFAULT_KEY_TYPE_NAME : DEFAULT_KEY_TYPE_NAME;
 
 	type = sshkey_type_from_shortname(key_type_name);
 	type_bits_valid(type, key_type_name, &bits);

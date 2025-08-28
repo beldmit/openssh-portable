@@ -45,6 +45,7 @@ DH	*dh_new_group_fallback(int);
 
 int	 dh_gen_key(DH *, int);
 int	 dh_pub_is_valid(const DH *, const BIGNUM *);
+int	 dh_is_known_group(const DH *);
 
 u_int	 dh_estimate(int);
 void	 dh_set_moduli_file(const char *);

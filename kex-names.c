@@ -33,6 +33,7 @@
 
 #ifdef WITH_OPENSSL
 #include <openssl/crypto.h>
+#include <openssl/fips.h>
 #include <openssl/evp.h>
 #endif
 
@@ -208,7 +209,10 @@ kex_names_valid(const char *names)
 	for ((p = strsep(&cp, ",")); p && *p != '\0';
 	    (p = strsep(&cp, ","))) {
 		if (kex_alg_by_name(p) == NULL) {
-			error("Unsupported KEX algorithm \"%.100s\"", p);
+			if (FIPS_mode())
+				error("\"%.100s\" is not allowed in FIPS mode", p);
+			else
+				error("Unsupported KEX algorithm \"%.100s\"", p);
 			free(s);
 			return 0;
 		}

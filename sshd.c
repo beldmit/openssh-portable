@@ -44,6 +44,7 @@
 #include <poll.h>
 #include <pwd.h>
 #include <signal.h>
+#include <syslog.h>
 #include <stdarg.h>
 #include <time.h>
 #include <stdio.h>
@@ -55,6 +56,7 @@
 #ifdef WITH_OPENSSL
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/fips.h>
 #include "openbsd-compat/openssl-compat.h"
 #endif
 
@@ -1613,6 +1615,13 @@ main(int ac, char **av)
 		    &key, NULL)) != 0 && r != SSH_ERR_SYSTEM_ERROR)
 			do_log2_r(r, ll, "Unable to load host key \"%s\"",
 			    options.host_key_files[i]);
+		if (FIPS_mode() && key != NULL && (sshkey_type_plain(key->type) == KEY_ED25519_SK
+				||  sshkey_type_plain(key->type) == KEY_ED25519)) {
+		    logit_f("sshd: Ed25519 keys are not allowed in FIPS mode, skipping %s", options.host_key_files[i]);
+		    sshkey_free(key);
+		    key = NULL;
+		    continue;
+		}
 		if (sshkey_is_sk(key) &&
 		    key->sk_flags & SSH_SK_USER_PRESENCE_REQD) {
 			debug("host key %s requires user presence, ignoring",
@@ -1835,6 +1844,10 @@ main(int ac, char **av)
 	}
 	/* Reinitialize the log (because of the fork above). */
 	log_init(__progname, options.log_level, options.log_facility, log_stderr);
+
+	if (FIPS_mode()) {
+		debug("FIPS mode initialized");
+	}
 
 	/*
 	 * Chdir to the root directory so that the current disk can be
