@@ -21,6 +21,7 @@
 #ifdef WITH_OPENSSL
 #include <openssl/bn.h>
 #endif
+#include <openssl/fips.h>
 
 #include <errno.h>
 #include <limits.h>
@@ -233,6 +234,14 @@ keygrab_ssh2(con *c)
 {
 	char *myproposal[PROPOSAL_MAX] = { KEX_CLIENT };
 	int r;
+
+	if (FIPS_mode()) {
+		myproposal[PROPOSAL_KEX_ALGS] = KEX_DEFAULT_KEX_FIPS;
+		myproposal[PROPOSAL_ENC_ALGS_CTOS] = KEX_FIPS_ENCRYPT;
+		myproposal[PROPOSAL_ENC_ALGS_STOC] = KEX_FIPS_ENCRYPT;
+		myproposal[PROPOSAL_MAC_ALGS_CTOS] = KEX_FIPS_MAC;
+		myproposal[PROPOSAL_MAC_ALGS_STOC] = KEX_FIPS_MAC;
+	}
 
 	switch (c->c_keytype) {
 	case KT_RSA:

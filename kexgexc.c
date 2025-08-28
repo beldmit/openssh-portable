@@ -29,6 +29,7 @@
 #ifdef WITH_OPENSSL
 #include "openbsd-compat/openssl-compat.h"
 
+#include <openssl/fips.h>
 #include <sys/types.h>
 
 #include <openssl/bn.h>
@@ -112,6 +113,10 @@ input_kex_dh_gex_group(int type, uint32_t seq, struct ssh *ssh)
 	}
 	if ((kex->dh = dh_new_group(g, p)) == NULL) {
 		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+	if (FIPS_mode() && dh_is_known_group(kex->dh) == 0) {
+		r = SSH_ERR_INVALID_ARGUMENT;
 		goto out;
 	}
 	p = g = NULL; /* belong to kex->dh now */
