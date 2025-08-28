@@ -36,6 +36,7 @@
 
 #include <openssl/bn.h>
 #include <openssl/dh.h>
+#include <openssl/fips.h>
 
 #include "dh.h"
 #include "pathnames.h"
@@ -163,6 +164,12 @@ choose_dh(int min, int wantbits, int max)
 	size_t linesize = 0;
 	int best, bestcount, which, linenum;
 	struct dhgroup dhg;
+
+	if (FIPS_mode()) {
+		verbose("Using arbitrary primes is not allowed in FIPS mode."
+		    " Falling back to known groups.");
+		return (dh_new_group_fallback(max));
+	}
 
 	if ((f = fopen(get_moduli_filename(), "r")) == NULL) {
 		logit("WARNING: could not open %s (%s), using fixed modulus",
@@ -500,6 +507,40 @@ dh_estimate(int bits)
 	if (bits <= 192)
 		return 7680;
 	return 8192;
+}
+
+/*
+ * Compares the received DH parameters with known-good groups,
+ * which might be either from group14, group16 or group18.
+ */
+int
+dh_is_known_group(const DH *dh)
+{
+	const BIGNUM *p, *g;
+	const BIGNUM *known_p, *known_g;
+	DH *known = NULL;
+	int bits = 0, rv = 0;
+
+	DH_get0_pqg(dh, &p, NULL, &g);
+	bits = BN_num_bits(p);
+
+	if (bits <= 3072) {
+		known = dh_new_group14();
+	} else if (bits <= 6144) {
+		known = dh_new_group16();
+	} else {
+		known = dh_new_group18();
+	}
+
+	DH_get0_pqg(known, &known_p, NULL, &known_g);
+
+	if (BN_cmp(g, known_g) == 0 &&
+	    BN_cmp(p, known_p) == 0) {
+		rv = 1;
+	}
+
+	DH_free(known);
+	return rv;
 }
 
 #endif /* WITH_OPENSSL */

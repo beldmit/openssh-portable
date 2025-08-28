@@ -40,6 +40,7 @@
 #ifdef WITH_OPENSSL
 #include <openssl/crypto.h>
 #include <openssl/dh.h>
+#include <openssl/fips.h>
 # ifdef HAVE_EVP_KDF_CTX_NEW
 # include <openssl/kdf.h>
 # include <openssl/param_build.h>
@@ -109,7 +110,7 @@ kex_proposal_populate_entries(struct ssh *ssh, char *prop[PROPOSAL_MAX],
 
 	/* Append EXT_INFO signalling to KexAlgorithms */
 	if (kexalgos == NULL)
-		kexalgos = defprop[PROPOSAL_KEX_ALGS];
+	    kexalgos = FIPS_mode() ? KEX_DEFAULT_KEX_FIPS : defprop[PROPOSAL_KEX_ALGS];
 	if ((cp = kex_names_cat(kexalgos, ssh->kex->server ?
 	    "ext-info-s,kex-strict-s-v00@openssh.com" :
 	    "ext-info-c,kex-strict-c-v00@openssh.com")) == NULL)

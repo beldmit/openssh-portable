@@ -62,6 +62,7 @@
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/fips.h>
 #include "openbsd-compat/openssl-compat.h"
 #endif
 
