@@ -23,6 +23,7 @@
 
 #include <openssl/evp.h>
 #include <openssl/err.h>
+#include <openssl/fips.h>
 
 #include <stdarg.h>
 #include <string.h>
@@ -142,6 +143,8 @@ ssh_rsa_generate(struct sshkey *k, int bits)
 		goto out;
 	}
 	if (EVP_PKEY_keygen(ctx, &res) <= 0 || res == NULL) {
+		if (FIPS_mode())
+			logit_f("the key length might be unsupported by FIPS mode approved key generation method");
 		ret = SSH_ERR_LIBCRYPTO_ERROR;
 		goto out;
 	}
