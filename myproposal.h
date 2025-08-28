@@ -58,6 +58,18 @@
 	"rsa-sha2-512," \
 	"rsa-sha2-256"
 
+#define	KEX_FIPS_PK_ALG	\
+	"ecdsa-sha2-nistp256-cert-v01@openssh.com," \
+	"ecdsa-sha2-nistp384-cert-v01@openssh.com," \
+	"ecdsa-sha2-nistp521-cert-v01@openssh.com," \
+	"rsa-sha2-512-cert-v01@openssh.com," \
+	"rsa-sha2-256-cert-v01@openssh.com," \
+	"ecdsa-sha2-nistp256," \
+	"ecdsa-sha2-nistp384," \
+	"ecdsa-sha2-nistp521," \
+	"rsa-sha2-512," \
+	"rsa-sha2-256"
+
 #define	KEX_SERVER_ENCRYPT \
 	"chacha20-poly1305@openssh.com," \
 	"aes128-gcm@openssh.com,aes256-gcm@openssh.com," \
@@ -78,6 +90,27 @@
 	"hmac-sha1"
 
 #define KEX_CLIENT_MAC KEX_SERVER_MAC
+
+#define	KEX_FIPS_ENCRYPT \
+	"aes128-ctr,aes192-ctr,aes256-ctr," \
+	"aes128-cbc,3des-cbc," \
+	"aes192-cbc,aes256-cbc,rijndael-cbc@lysator.liu.se," \
+	"aes128-gcm@openssh.com,aes256-gcm@openssh.com"
+#define KEX_DEFAULT_KEX_FIPS		\
+	"ecdh-sha2-nistp256," \
+	"ecdh-sha2-nistp384," \
+	"ecdh-sha2-nistp521," \
+	"diffie-hellman-group-exchange-sha256," \
+	"diffie-hellman-group16-sha512," \
+	"diffie-hellman-group18-sha512," \
+	"diffie-hellman-group14-sha256"
+#define KEX_FIPS_MAC \
+	"hmac-sha1," \
+	"hmac-sha2-256," \
+	"hmac-sha2-512," \
+	"hmac-sha1-etm@openssh.com," \
+	"hmac-sha2-256-etm@openssh.com," \
+	"hmac-sha2-512-etm@openssh.com"
 
 /* Not a KEX value, but here so all the algorithm defaults are together */
 #define	SSH_ALLOWED_CA_SIGALGS	\

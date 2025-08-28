@@ -88,6 +88,11 @@ extern char **k5users_allowed_cmds;
 	KEX_GSS_GRP14_SHA1_ID "," \
 	KEX_GSS_GEX_SHA1_ID
 
+#define        GSS_KEX_DEFAULT_KEX_FIPS \
+	KEX_GSS_GRP14_SHA256_ID "," \
+	KEX_GSS_GRP16_SHA512_ID	"," \
+	KEX_GSS_NISTP256_SHA256_ID
+
 #include "digest.h" /* SSH_DIGEST_MAX_LENGTH */
 
 typedef struct {
