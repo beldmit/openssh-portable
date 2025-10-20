@@ -203,6 +203,11 @@ int crypto_sign_mldsa44_ed25519_verify(const uint8_t sig[MLDSA44_ED25519_SIG_SZ]
     const uint8_t *ctx, size_t ctxlen,
     const uint8_t pk[MLDSA44_ED25519_PK_SZ]);
 
+/* ML-KEM-1024 */
+#define crypto_kem_mlkem1024_PUBLICKEYBYTES 1568
+#define crypto_kem_mlkem1024_SECRETKEYBYTES 3168
+#define crypto_kem_mlkem1024_CIPHERTEXTBYTES 1568
+
 /* Utility */
 void sha3_256(uint8_t digest[32], const uint8_t *data, size_t len);
 void sha3_512(uint8_t digest[64], const uint8_t *data, size_t len);
