@@ -26,6 +26,8 @@
 
 #define KEX_SERVER_KEX	\
 	"mlkem768x25519-sha256," \
+	"mlkem768nistp256-sha256," \
+	"mlkem1024nistp384-sha384," \
 	"sntrup761x25519-sha512," \
 	"sntrup761x25519-sha512@openssh.com," \
 	"curve25519-sha256," \
@@ -97,6 +99,8 @@
 	"aes192-cbc,aes256-cbc,rijndael-cbc@lysator.liu.se," \
 	"aes128-gcm@openssh.com,aes256-gcm@openssh.com"
 #define KEX_DEFAULT_KEX_FIPS		\
+	"mlkem768nistp256-sha256," \
+	"mlkem1024nistp384-sha384," \
 	"ecdh-sha2-nistp256," \
 	"ecdh-sha2-nistp384," \
 	"ecdh-sha2-nistp521," \
