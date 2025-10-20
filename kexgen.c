@@ -139,6 +139,22 @@ kex_gen_client(struct ssh *ssh)
 		    r = kex_kem_mlkem768x25519_keypair(kex);
 		}
 		break;
+	case KEX_KEM_MLKEM768NISTP256_SHA256:
+		if (FIPS_mode()) {
+		    logit_f("Key exchange type mlkem768nistp256 is not allowed in FIPS mode");
+		    r = SSH_ERR_INVALID_ARGUMENT;
+		} else {
+		    r = kex_kem_mlkem768nistp256_keypair(kex);
+		}
+		break;
+	case KEX_KEM_MLKEM1024NISTP384_SHA384:
+		if (FIPS_mode()) {
+		    logit_f("Key exchange type mlkem1024nistp384 is not allowed in FIPS mode");
+		    r = SSH_ERR_INVALID_ARGUMENT;
+		} else {
+		    r = kex_kem_mlkem1024nistp384_keypair(kex);
+		}
+		break;
 	default:
 		r = SSH_ERR_INVALID_ARGUMENT;
 		break;
@@ -227,6 +243,24 @@ input_kex_gen_reply(int type, u_int32_t seq, struct ssh *ssh)
 		    r = SSH_ERR_INVALID_ARGUMENT;
 		} else {
 		    r = kex_kem_mlkem768x25519_dec(kex, server_blob,
+		        &shared_secret);
+		}
+		break;
+	case KEX_KEM_MLKEM768NISTP256_SHA256:
+		if (FIPS_mode()) {
+		    logit_f("Key exchange type mlkem768nistp256 is not allowed in FIPS mode");
+		    r = SSH_ERR_INVALID_ARGUMENT;
+		} else {
+		    r = kex_kem_mlkem768nistp256_dec(kex, server_blob,
+		        &shared_secret);
+		}
+		break;
+	case KEX_KEM_MLKEM1024NISTP384_SHA384:
+		if (FIPS_mode()) {
+		    logit_f("Key exchange type mlkem1024nistp384 is not allowed in FIPS mode");
+		    r = SSH_ERR_INVALID_ARGUMENT;
+		} else {
+		    r = kex_kem_mlkem1024nistp384_dec(kex, server_blob,
 		        &shared_secret);
 		}
 		break;
@@ -366,6 +400,24 @@ input_kex_gen_init(int type, u_int32_t seq, struct ssh *ssh)
 		    r = SSH_ERR_INVALID_ARGUMENT;
 		} else {
 		    r = kex_kem_mlkem768x25519_enc(kex, client_pubkey,
+		        &server_pubkey, &shared_secret);
+		}
+		break;
+	case KEX_KEM_MLKEM768NISTP256_SHA256:
+		if (FIPS_mode()) {
+		    logit_f("Key exchange type mlkem768nistp256 is not allowed in FIPS mode");
+		    r = SSH_ERR_INVALID_ARGUMENT;
+		} else {
+		    r = kex_kem_mlkem768nistp256_enc(kex, client_pubkey,
+		        &server_pubkey, &shared_secret);
+		}
+		break;
+	case KEX_KEM_MLKEM1024NISTP384_SHA384:
+		if (FIPS_mode()) {
+		    logit_f("Key exchange type mlkem1024nistp384 is not allowed in FIPS mode");
+		    r = SSH_ERR_INVALID_ARGUMENT;
+		} else {
+		    r = kex_kem_mlkem1024nistp384_enc(kex, client_pubkey,
 		        &server_pubkey, &shared_secret);
 		}
 		break;

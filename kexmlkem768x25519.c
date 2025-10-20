@@ -550,6 +550,41 @@ kex_kem_mlkem768x25519_dec(struct kex *kex,
 	return r;
 #endif
 }
+
+int	 kex_kem_mlkem768nistp256_keypair(struct kex *)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem768nistp256_enc(struct kex *, const struct sshbuf *,
+    struct sshbuf **, struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem768nistp256_dec(struct kex *, const struct sshbuf *,
+    struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem1024nistp384_keypair(struct kex *)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem1024nistp384_enc(struct kex *, const struct sshbuf *,
+    struct sshbuf **, struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem1024nistp384_dec(struct kex *, const struct sshbuf *,
+    struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
 #else /* USE_MLKEM768X25519 */
 int
 kex_kem_mlkem768x25519_keypair(struct kex *kex)
@@ -571,4 +606,39 @@ kex_kem_mlkem768x25519_dec(struct kex *kex,
 {
 	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
 }
+
+int	 kex_kem_mlkem768nistp256_keypair(struct kex *)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem768nistp256_enc(struct kex *, const struct sshbuf *,
+    struct sshbuf **, struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem768nistp256_dec(struct kex *, const struct sshbuf *,
+    struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem1024nistp384_keypair(struct kex *)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem1024nistp384_enc(struct kex *, const struct sshbuf *,
+    struct sshbuf **, struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
+int	 kex_kem_mlkem1024nistp384_dec(struct kex *, const struct sshbuf *,
+    struct sshbuf **)
+{
+	return SSH_ERR_SIGN_ALG_UNSUPPORTED;
+}
+
 #endif /* USE_MLKEM768X25519 */

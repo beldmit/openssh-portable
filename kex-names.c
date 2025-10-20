@@ -90,6 +90,10 @@ static const struct kexalg kexalgs[] = {
 #ifdef USE_MLKEM768X25519
 	{ KEX_MLKEM768X25519_SHA256, KEX_KEM_MLKEM768X25519_SHA256, 0,
 	    SSH_DIGEST_SHA256 },
+	{ KEX_MLKEM768NISTP256_SHA256, KEX_KEM_MLKEM768NISTP256_SHA256, 0,
+	    SSH_DIGEST_SHA256 },
+	{ KEX_MLKEM1024NISTP384_SHA384, KEX_KEM_MLKEM1024NISTP384_SHA384, 0,
+	    SSH_DIGEST_SHA384 },
 #endif
 #endif /* HAVE_EVP_SHA256 || !WITH_OPENSSL */
 	{ NULL, 0, -1, -1},
@@ -129,7 +133,9 @@ kex_alg_list_internal(char sep, const struct kexalg *algs)
 	const struct kexalg *k;
 
 	for (k = algs; k->name != NULL; k++) {
-		if (strcmp(k->name, KEX_MLKEM768X25519_SHA256) == 0
+		if ( (strcmp(k->name, KEX_MLKEM768X25519_SHA256) == 0
+		   || strcmp(k->name, KEX_MLKEM768NISTP256_SHA256) == 0
+		   || strcmp(k->name, KEX_MLKEM1024NISTP384_SHA384) == 0)
 			&& !is_mlkem768_available())
 			continue;
 		if (ret != NULL)
@@ -163,7 +169,9 @@ kex_alg_by_name(const char *name)
 {
 	const struct kexalg *k;
 
-	if (strcmp(name, KEX_MLKEM768X25519_SHA256) == 0
+	if ( (strcmp(name, KEX_MLKEM768X25519_SHA256) == 0
+	   || strcmp(name, KEX_MLKEM768NISTP256_SHA256) == 0
+	   || strcmp(name, KEX_MLKEM1024NISTP384_SHA384) == 0)
 		&& !is_mlkem768_available())
 	return NULL;
 
