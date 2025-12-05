@@ -143,6 +143,7 @@ initialize_server_options(ServerOptions *options)
 	options->gss_authentication=-1;
 	options->gss_keyex = -1;
 	options->gss_cleanup_creds = -1;
+	options->gss_deleg_creds = -1;
 	options->gss_strict_acceptor = -1;
 	options->gss_store_rekey = -1;
 	options->gss_kex_algorithms = NULL;
@@ -396,6 +397,8 @@ fill_default_server_options(ServerOptions *options)
 		options->gss_keyex = 0;
 	if (options->gss_cleanup_creds == -1)
 		options->gss_cleanup_creds = 1;
+	if (options->gss_deleg_creds == -1)
+		options->gss_deleg_creds = 1;
 	if (options->gss_strict_acceptor == -1)
 		options->gss_strict_acceptor = 1;
 	if (options->gss_store_rekey == -1)
@@ -591,7 +594,8 @@ typedef enum {
 	sHostKeyAlgorithms, sPerSourceMaxStartups, sPerSourceNetBlockSize,
 	sPerSourcePenalties, sPerSourcePenaltyExemptList,
 	sClientAliveInterval, sClientAliveCountMax, sAuthorizedKeysFile,
-	sGssAuthentication, sGssCleanupCreds, sGssEnablek5users, sGssStrictAcceptor,
+	sGssAuthentication, sGssCleanupCreds, sGssDelegateCreds,
+	sGssEnablek5users, sGssStrictAcceptor,
 	sGssKeyEx, sGssIndicators, sGssKexAlgorithms, sGssStoreRekey,
 	sAcceptEnv, sSetEnv, sPermitTunnel,
 	sMatch, sPermitOpen, sPermitListen, sForceCommand, sChrootDirectory,
@@ -683,6 +687,7 @@ static struct {
 	{ "gssapiauthentication", sGssAuthentication, SSHCFG_ALL },
 	{ "gssapicleanupcredentials", sGssCleanupCreds, SSHCFG_GLOBAL },
 	{ "gssapicleanupcreds", sGssCleanupCreds, SSHCFG_GLOBAL },
+	{ "gssapidelegatecredentials", sGssDelegateCreds, SSHCFG_GLOBAL },
 	{ "gssapistrictacceptorcheck", sGssStrictAcceptor, SSHCFG_GLOBAL },
 	{ "gssapikeyexchange", sGssKeyEx, SSHCFG_GLOBAL },
 	{ "gssapistorecredentialsonrekey", sGssStoreRekey, SSHCFG_GLOBAL },
@@ -693,6 +698,7 @@ static struct {
 	{ "gssapiauthentication", sUnsupported, SSHCFG_ALL },
 	{ "gssapicleanupcredentials", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapicleanupcreds", sUnsupported, SSHCFG_GLOBAL },
+	{ "gssapidelegatecredentials", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapistrictacceptorcheck", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapikeyexchange", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapistorecredentialsonrekey", sUnsupported, SSHCFG_GLOBAL },
@@ -1703,6 +1709,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 
 	case sGssCleanupCreds:
 		intptr = &options->gss_cleanup_creds;
+		goto parse_flag;
+
+	case sGssDelegateCreds:
+		intptr = &options->gss_deleg_creds;
 		goto parse_flag;
 
 	case sGssStrictAcceptor:
@@ -3352,6 +3362,7 @@ dump_config(ServerOptions *o)
 #ifdef GSSAPI
 	dump_cfg_fmtint(sGssAuthentication, o->gss_authentication);
 	dump_cfg_fmtint(sGssCleanupCreds, o->gss_cleanup_creds);
+	dump_cfg_fmtint(sGssDelegateCreds, o->gss_deleg_creds);
 	dump_cfg_fmtint(sGssKeyEx, o->gss_keyex);
 	dump_cfg_fmtint(sGssStrictAcceptor, o->gss_strict_acceptor);
 	dump_cfg_fmtint(sGssStoreRekey, o->gss_store_rekey);
