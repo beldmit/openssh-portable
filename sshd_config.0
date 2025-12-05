@@ -453,6 +453,9 @@ DESCRIPTION
              Specifies whether to automatically destroy the user's credentials
              cache on logout.  The default is yes.
 
+     GSSAPIDelegateCredentials
+             Accept delegated credentials on the server side.  The default is yes.
+
      GSSAPIStrictAcceptorCheck
              Determines whether to be strict about the identity of the GSSAPI
              acceptor a client authenticates against.  If set to yes then the

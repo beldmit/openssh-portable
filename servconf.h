@@ -156,6 +156,7 @@ typedef struct {
 	int     gss_authentication;	/* If true, permit GSSAPI authentication */
 	int     gss_keyex;		/* If true, permit GSSAPI key exchange */
 	int     gss_cleanup_creds;	/* If true, destroy cred cache on logout */
+	int     gss_deleg_creds;	/* If true, accept delegated GSS credentials */
 	int     gss_strict_acceptor;	/* If true, restrict the GSSAPI acceptor name */
 	int 	gss_store_rekey;
 	char   *gss_kex_algorithms;	/* GSSAPI kex methods to be offered by client. */
