@@ -48,9 +48,14 @@
 #ifdef USE_MLKEM768X25519
 
 #include "libcrux_mlkem768_sha3.h"
+#include <openssl/bn.h>
+#include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/fips.h>
 #include <stdio.h>
+
+#define FIPS_FALLBACK_PROPQ "provider=default,-fips"
 
 static int
 mlkem_keypair_gen(const char *algname, unsigned char *pubkeybuf, size_t pubkey_size,
@@ -62,6 +67,14 @@ mlkem_keypair_gen(const char *algname, unsigned char *pubkeybuf, size_t pubkey_s
     size_t got_pub_size = pubkey_size, got_priv_size = privkey_size;
 
     ctx = EVP_PKEY_CTX_new_from_name(NULL, algname, NULL);
+
+    if (ctx == NULL && FIPS_mode()) {
+	/* We have filtered x25519 + ML-KEM in FIPS mode earlier
+	 * so if we are in FIPS mode and ML-KEM is not available with default propq,
+	 * we can fetch it from the default provider */
+        ctx = EVP_PKEY_CTX_new_from_name(NULL, algname, FIPS_FALLBACK_PROPQ);
+    }
+
     if (ctx == NULL) {
 	ret = SSH_ERR_LIBCRYPTO_ERROR;
 	goto err;
@@ -121,6 +134,7 @@ mlkem_encap_secret(const char *mlkem_alg, const u_char *pubkeybuf, u_char *secre
     EVP_PKEY_CTX *ctx = NULL;
     int r = SSH_ERR_INTERNAL_ERROR;
     size_t outlen, expected_outlen, publen, secretlen = crypto_kem_mlkem768_BYTES;
+    int fips_fallback = 0;
 
     if (strcmp(mlkem_alg, "mlkem768") == 0) {
 	    outlen = crypto_kem_mlkem768_CIPHERTEXTBYTES;
@@ -135,12 +149,17 @@ mlkem_encap_secret(const char *mlkem_alg, const u_char *pubkeybuf, u_char *secre
 
     pkey = EVP_PKEY_new_raw_public_key_ex(NULL, mlkem_alg, NULL,
 		    pubkeybuf, publen);
+    if (pkey == NULL && FIPS_mode()) {
+        pkey = EVP_PKEY_new_raw_public_key_ex(NULL, mlkem_alg, FIPS_FALLBACK_PROPQ,
+		    pubkeybuf, publen);
+	fips_fallback = 1;
+    }
     if (pkey == NULL) {
 	r = SSH_ERR_LIBCRYPTO_ERROR;
 	goto err;
     }
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, NULL);
+    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, fips_fallback ? FIPS_FALLBACK_PROPQ : NULL);
     if (ctx == NULL
 	|| EVP_PKEY_encapsulate_init(ctx, NULL) <= 0
         || EVP_PKEY_encapsulate(ctx, out, &expected_outlen, secret, &secretlen) <= 0
@@ -182,15 +201,21 @@ mlkem_decap_secret(const char *algname,
     EVP_PKEY_CTX *ctx = NULL;
     int r = SSH_ERR_INTERNAL_ERROR;
     size_t secretlen = crypto_kem_mlkem768_BYTES;
+    int fips_fallback = 0;
 
     pkey = EVP_PKEY_new_raw_private_key_ex(NULL, algname,
 		    NULL, privkeybuf, privkey_len);
+    if (pkey == NULL && FIPS_mode()) {
+        pkey = EVP_PKEY_new_raw_private_key_ex(NULL, algname,
+		    FIPS_FALLBACK_PROPQ, privkeybuf, privkey_len);
+	fips_fallback = 1;
+    }
     if (pkey == NULL) {
 	r = SSH_ERR_LIBCRYPTO_ERROR;
 	goto err;
     }
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, NULL);
+    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, fips_fallback ? FIPS_FALLBACK_PROPQ : NULL);
     if (ctx == NULL
 	|| EVP_PKEY_decapsulate_init(ctx, NULL) <= 0
         || EVP_PKEY_decapsulate(ctx, secret, &secretlen, wrapped, wrapped_len) <= 0
@@ -744,6 +769,48 @@ nist_pkey_keygen(size_t pub_key_len)
 	return pkey;
 }
 
+static size_t decompress_pub_key(void *pub, size_t compressed_len, size_t decompressed_len)
+{
+    EC_GROUP *group = NULL;
+    EC_POINT *point = NULL;
+    BN_CTX *ctx = NULL;
+    size_t len = 0;
+    int group_nid = NID_undef;
+
+    switch (compressed_len) {
+    case NIST_P256_COMPRESSED_LEN:
+         group_nid = NID_X9_62_prime256v1;
+       break;
+    case NIST_P384_COMPRESSED_LEN:
+         group_nid = NID_secp384r1;
+       break;
+    default:
+       return 0;
+       break;
+    }
+
+    ctx = BN_CTX_new();
+    group = EC_GROUP_new_by_curve_name(group_nid);
+    if (ctx == NULL || group == NULL)
+        goto err;
+
+    point = EC_POINT_new(group);
+    if (point == NULL)
+        goto err;
+
+    if (!EC_POINT_oct2point(group, point, pub, compressed_len, ctx))
+        goto err;
+
+    len = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED, pub, decompressed_len, ctx);
+
+err:
+    EC_POINT_free(point);
+    EC_GROUP_free(group);
+    BN_CTX_free(ctx);
+
+    return len;
+}
+
 static int
 get_uncompressed_ec_pubkey(EVP_PKEY *pkey, unsigned char *buf, size_t buf_len)
 {
@@ -757,16 +824,25 @@ get_uncompressed_ec_pubkey(EVP_PKEY *pkey, unsigned char *buf, size_t buf_len)
 
     if (EVP_PKEY_set_params(pkey, params) <= 0
 	    || EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY,
-                                          NULL, 0, &required_len) <= 0) {
+                                          buf, buf_len, &required_len) <= 0) {
         return SSH_ERR_LIBCRYPTO_ERROR;
     }
 
-    if (required_len != buf_len)
-	return SSH_ERR_INTERNAL_ERROR;
-
-    if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY,
-                                          buf, required_len, &out_len) <= 0) {
-        return SSH_ERR_LIBCRYPTO_ERROR;
+    if (required_len != buf_len) {
+        /* Red Hat certified FIPS provider ignores OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT
+	 * We may have to perform the conversion manually */
+        if (len2curve_name(required_len) == len2curve_name(buf_len)) {
+	    out_len = decompress_pub_key(buf, required_len, buf_len);
+	    if (out_len != buf_len) {
+	        debug_f("Error decompressing the compressed public key");
+	        return SSH_ERR_LIBCRYPTO_ERROR;
+	    } else {
+		return 0;
+	    }
+	} else {
+	    debug_f("Unexpected length of uncompressed public key: expected %d, got %d", buf_len, required_len);
+	    return SSH_ERR_LIBCRYPTO_ERROR;
+	}
     }
 
     return 0;
