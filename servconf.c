@@ -1535,6 +1535,10 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 			*intptr = value;
 		break;
 
+	case sX11MaxDisplays:
+		intptr = &options->x11_max_displays;
+		goto parse_int;
+
 	case sX11UseLocalhost:
 		intptr = &options->x11_use_localhost;
 		goto parse_flag;
@@ -4250,6 +4254,7 @@ dump_config(ServerOptions *o)
 #endif
 	dump_cfg_int(sLoginGraceTime, o->login_grace_time);
 	dump_cfg_int(sX11DisplayOffset, o->x11_display_offset);
+	dump_cfg_int(sX11MaxDisplays, o->x11_max_displays);
 	dump_cfg_int(sMaxAuthTries, o->max_authtries);
 	dump_cfg_int(sMaxSessions, o->max_sessions);
 	dump_cfg_int(sClientAliveInterval, o->client_alive_interval);
