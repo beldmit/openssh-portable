@@ -677,9 +677,11 @@ construct_utmp(struct logininfo *li,
 	 */
 
 	/* Use strncpy because we don't necessarily want null termination */
+	/* coverity[buffer_size_warning : FALSE] */
 	strncpy(ut->ut_name, li->username,
 	    MIN_SIZEOF(ut->ut_name, li->username));
 # ifdef HAVE_HOST_IN_UTMP
+	/* coverity[buffer_size_warning : FALSE] */
 	strncpy(ut->ut_host, li->hostname,
 	    MIN_SIZEOF(ut->ut_host, li->hostname));
 # endif
