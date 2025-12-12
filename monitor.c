@@ -405,7 +405,7 @@ monitor_child_preauth(struct ssh *ssh, struct monitor *pmonitor)
 	mm_get_keystate(ssh, pmonitor);
 
 	/* Drain any buffered messages from the child */
-	while (pmonitor->m_log_recvfd != -1 && monitor_read_log(pmonitor) == 0)
+	while (pmonitor->m_log_recvfd >= 0 && monitor_read_log(pmonitor) == 0)
 		;
 
 	/* Wait for the child's exit status */
@@ -1819,7 +1819,7 @@ mm_answer_pty(struct ssh *ssh, int sock, struct sshbuf *m)
 	s->ptymaster = s->ptyfd;
 
 	debug3_f("tty %s ptyfd %d", s->tty, s->ttyfd);
-
+	/* coverity[leaked_handle : FALSE] */
 	return (0);
 
  error:
