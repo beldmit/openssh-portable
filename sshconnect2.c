@@ -75,6 +75,11 @@
 #include "ssh-sk.h"
 #include "sk-api.h"
 
+#ifdef ENABLE_PKCS11
+#include "ssh-pkcs11.h"
+#include "ssh-pkcs11-uri.h"
+#endif
+
 #ifdef GSSAPI
 #include "ssh-gss.h"
 #endif
@@ -2076,6 +2081,15 @@ pubkey_prepare(struct ssh *ssh, Authctxt *authctxt)
 				break;
 			}
 		}
+#ifdef ENABLE_PKCS11
+		/*
+		 * User-provided PKCS11 URI doesn't need an plain-file with
+		 * public key inside!
+		 */
+		if (!found && id->userprovided &&
+		    strncmp(id->filename, PKCS11_URI_SCHEME, strlen(PKCS11_URI_SCHEME)) == 0)
+			found = 1;
+#endif
 		/* If IdentitiesOnly set and key not found then don't use it */
 		if (!found && options.identities_only) {
 			TAILQ_REMOVE(&files, id, next);
