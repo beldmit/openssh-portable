@@ -609,6 +609,231 @@ ssh_gssapi_krb5_updatecreds(ssh_gssapi_ccache *store,
 	return 1;
 }
 
+/*
+ * Check whether the user's default ccache already contains valid service
+ * tickets for all principals listed in services[].  Returns 1 if every
+ * listed service has a ticket with at least min_lifetime seconds remaining
+ * (pass GSS_C_INDEFINITE to accept any positive remaining lifetime), 0 if
+ * any ticket is missing or too close to expiry.  Runs as the user.
+ *
+ * Unlike ssh_gssapi_user_has_valid_tgt(), this cannot use gss_acquire_cred()
+ * because service tickets are not initiator credentials — GSSAPI only
+ * surfaces TGTs via that API.  We iterate the ccache with the krb5 API
+ * directly instead.
+ */
+int
+ssh_gssapi_user_has_valid_proxy_tickets(char **services, u_int nservices,
+    u_int min_lifetime)
+{
+	krb5_context ctx = NULL;
+	krb5_ccache cc = NULL;
+	krb5_cc_cursor cursor;
+	krb5_creds cred;
+	krb5_principal svc_princ;
+	int *found = NULL;
+	u_int i;
+	int all_found = 0;
+	time_t now;
+
+	if (nservices == 0)
+		return 0;
+
+	if (krb5_init_context(&ctx) != 0)
+		return 0;
+
+	found = xcalloc(nservices, sizeof(*found));
+	now = time(NULL);
+
+	if (krb5_cc_default(ctx, &cc) != 0)
+		goto out;
+
+	if (krb5_cc_start_seq_get(ctx, cc, &cursor) != 0) {
+		krb5_cc_close(ctx, cc);
+		cc = NULL;
+		goto out;
+	}
+
+	while (krb5_cc_next_cred(ctx, cc, &cursor, &cred) == 0) {
+		/*
+		 * Use krb5_principal_compare() so that service names
+		 * configured without an explicit realm (krb5_parse_name
+		 * appends the default realm) still match the fully-
+		 * qualified principal stored in the ccache.
+		 */
+		for (i = 0; i < nservices; i++) {
+			if (found[i])
+				continue;
+			if (krb5_parse_name(ctx, services[i],
+			    &svc_princ) != 0)
+				continue;
+			if (krb5_principal_compare(ctx,
+			    cred.server, svc_princ)) {
+				krb5_deltat remaining =
+				    cred.times.endtime - now;
+				if (remaining > 0 &&
+				    (min_lifetime == GSS_C_INDEFINITE ||
+				     (krb5_deltat)min_lifetime <= remaining))
+					found[i] = 1;
+			}
+			krb5_free_principal(ctx, svc_princ);
+		}
+		krb5_free_cred_contents(ctx, &cred);
+	}
+	krb5_cc_end_seq_get(ctx, cc, &cursor);
+	krb5_cc_close(ctx, cc);
+	cc = NULL;
+
+	all_found = 1;
+	for (i = 0; i < nservices; i++) {
+		if (!found[i]) {
+			all_found = 0;
+			break;
+		}
+	}
+out:
+	free(found);
+	if (ctx != NULL)
+		krb5_free_context(ctx);
+	return all_found;
+}
+
+/* As user - called on fatal/exit */
+void
+ssh_gssapi_cleanup_creds(void)
+{
+	ssh_gssapi_ccache *store = ssh_gssapi_get_ccache();
+	krb5_ccache ccache = NULL;
+	krb5_error_code problem;
+
+	if (store->data != NULL) {
+		if ((problem = krb5_cc_resolve(store->data,
+		    store->envval, &ccache))) {
+			debug_f("krb5_cc_resolve(): %.100s",
+			    krb5_get_err_text(store->data, problem));
+		} else if ((problem = krb5_cc_destroy(store->data, ccache))) {
+			debug_f("krb5_cc_destroy(): %.100s",
+			    krb5_get_err_text(store->data, problem));
+		} else {
+			krb5_free_context(store->data);
+			store->data = NULL;
+		}
+	}
+}
+
+/*
+ * Filter the user's ccache by removing the ticket classes indicated by
+ * drop_flags (SSH_GSSAPI_CCFILTER_* bitmask).  Each credential is
+ * categorised as one of:
+ *   TGT   - server principal matches "krbtgt/" prefix
+ *   PROXY - server principal matches one of proxy_services[]
+ *   SELF  - everything else (the S4U2Self evidence ticket)
+ * Credentials in a flagged category are discarded; the rest are written
+ * back after reinitialising the ccache.  Runs as user.
+ */
+void
+ssh_gssapi_krb5_filter_ccache(u_int drop_flags,
+    char **proxy_services, u_int nproxy_services)
+{
+	ssh_gssapi_ccache *store = ssh_gssapi_get_ccache();
+	krb5_context ctx = (krb5_context)store->data;
+	krb5_ccache cc = NULL;
+	krb5_cc_cursor cursor;
+	krb5_creds *keep = NULL;
+	krb5_principal princ = NULL;
+	krb5_error_code problem;
+	char *srvname;
+	u_int i, nkeep = 0, cap = 0;
+	int is_tgt, is_proxy, drop;
+
+	if (ctx == NULL || store->envval == NULL)
+		return;
+
+	if ((problem = krb5_cc_resolve(ctx, store->envval, &cc)) != 0) {
+		debug_f("krb5_cc_resolve: %.100s",
+		    krb5_get_err_text(ctx, problem));
+		return;
+	}
+	if ((problem = krb5_cc_get_principal(ctx, cc, &princ)) != 0) {
+		debug_f("krb5_cc_get_principal: %.100s",
+		    krb5_get_err_text(ctx, problem));
+		krb5_cc_close(ctx, cc);
+		return;
+	}
+	if ((problem = krb5_cc_start_seq_get(ctx, cc, &cursor)) != 0) {
+		debug_f("krb5_cc_start_seq_get: %.100s",
+		    krb5_get_err_text(ctx, problem));
+		krb5_free_principal(ctx, princ);
+		krb5_cc_close(ctx, cc);
+		return;
+	}
+
+	{
+		krb5_creds cred;
+		krb5_principal svc_princ;
+		while (krb5_cc_next_cred(ctx, cc, &cursor, &cred) == 0) {
+			is_tgt = is_proxy = 0;
+			if (krb5_unparse_name(ctx, cred.server,
+			    &srvname) == 0) {
+				is_tgt = strncmp(srvname, "krbtgt/", 7) == 0;
+				krb5_free_unparsed_name(ctx, srvname);
+			}
+			if (!is_tgt) {
+				/*
+				 * Use krb5_principal_compare() rather than
+				 * strcmp() so that a service name configured
+				 * without an explicit realm (krb5_parse_name
+				 * appends the default realm) still matches
+				 * the fully-qualified name in the ccache.
+				 */
+				for (i = 0; i < nproxy_services; i++) {
+					if (krb5_parse_name(ctx,
+					    proxy_services[i], &svc_princ) != 0)
+						continue;
+					if (krb5_principal_compare(ctx,
+					    cred.server, svc_princ))
+						is_proxy = 1;
+					krb5_free_principal(ctx, svc_princ);
+					if (is_proxy)
+						break;
+				}
+			}
+			if (is_tgt)
+				drop = drop_flags & SSH_GSSAPI_CCFILTER_TGT;
+			else if (is_proxy)
+				drop = drop_flags & SSH_GSSAPI_CCFILTER_PROXY;
+			else
+				drop = drop_flags & SSH_GSSAPI_CCFILTER_SELF;
+
+			if (!drop) {
+				if (nkeep >= cap) {
+					cap = cap ? cap * 2 : 4;
+					keep = xreallocarray(keep, cap,
+					    sizeof(*keep));
+				}
+				keep[nkeep++] = cred;
+			} else
+				krb5_free_cred_contents(ctx, &cred);
+		}
+	}
+	krb5_cc_end_seq_get(ctx, cc, &cursor);
+
+	if ((problem = krb5_cc_initialize(ctx, cc, princ)) != 0) {
+		logit_f("krb5_cc_initialize: %.100s",
+		    krb5_get_err_text(ctx, problem));
+	} else {
+		for (i = 0; i < nkeep; i++)
+			krb5_cc_store_cred(ctx, cc, &keep[i]);
+		debug_f("ccache filter 0x%x: retained %u ticket(s)",
+		    drop_flags, nkeep);
+	}
+
+	for (i = 0; i < nkeep; i++)
+		krb5_free_cred_contents(ctx, &keep[i]);
+	free(keep);
+	krb5_free_principal(ctx, princ);
+	krb5_cc_close(ctx, cc);
+}
+
 ssh_gssapi_mech gssapi_kerberos_mech = {
 	"toWM5Slw5Ew8Mqkay+al2g==",
 	"Kerberos",
