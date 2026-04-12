@@ -34,6 +34,12 @@
 #include <gssapi/gssapi.h>
 #endif
 
+#ifdef HAVE_GSSAPI_EXT_H
+#include <gssapi_ext.h>
+#elif defined(HAVE_GSSAPI_GSSAPI_EXT_H)
+#include <gssapi/gssapi_ext.h>
+#endif
+
 #ifdef KRB5
 # ifndef HEIMDAL
 #  ifdef HAVE_GSSAPI_GENERIC_H
@@ -113,6 +119,7 @@ typedef struct {
 	int userok;
 	int used;
 	int updated;
+	char **indicators; /* auth indicators */
 } ssh_gssapi_client;
 
 typedef struct ssh_gssapi_mech_struct {
