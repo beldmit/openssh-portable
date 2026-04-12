@@ -55,7 +55,7 @@ extern ServerOptions options;
 
 static ssh_gssapi_client gssapi_client =
     { GSS_C_EMPTY_BUFFER, GSS_C_EMPTY_BUFFER, GSS_C_NO_CREDENTIAL,
-    GSS_C_NO_NAME, NULL, {NULL, NULL, NULL, NULL, NULL}, 0, 0, NULL};
+    GSS_C_NO_NAME, NULL, {NULL, NULL, NULL, NULL, NULL}, 0, 0, NULL, 0};
 
 ssh_gssapi_mech gssapi_null_mech =
     { NULL, NULL, {0, NULL}, NULL, NULL, NULL, NULL, NULL};
@@ -488,26 +488,382 @@ ssh_gssapi_getclient(Gssctxt *ctx, ssh_gssapi_client *client)
 	return (ctx->major);
 }
 
-/* As user - called on fatal/exit */
+/* Returns non-zero if Kerberos credentials have already been stored. */
+int
+ssh_gssapi_credentials_stored(void)
+{
+	return gssapi_client.store.envval != NULL;
+}
+
+/* Returns a pointer to the credential-cache descriptor for this session. */
+ssh_gssapi_ccache *
+ssh_gssapi_get_ccache(void)
+{
+	return &gssapi_client.store;
+}
+
+/* Log human-readable GSSAPI major and minor status strings. */
+static void
+log_gss_error(OM_uint32 major, OM_uint32 minor, const char *label)
+{
+	OM_uint32 lmin, mctx;
+	gss_buffer_desc emsg = GSS_C_EMPTY_BUFFER;
+
+	mctx = 0;
+	do {
+		gss_display_status(&lmin, major, GSS_C_GSS_CODE,
+		    GSS_C_NO_OID, &mctx, &emsg);
+		logit("%s: %.*s", label, (int)emsg.length, (char *)emsg.value);
+		gss_release_buffer(&lmin, &emsg);
+	} while (mctx != 0);
+
+	mctx = 0;
+	do {
+		gss_display_status(&lmin, minor, GSS_C_MECH_CODE,
+		    &gssapi_kerberos_mech.oid, &mctx, &emsg);
+		if (emsg.length > 0)
+			logit("%s: %.*s", label,
+			    (int)emsg.length, (char *)emsg.value);
+		gss_release_buffer(&lmin, &emsg);
+	} while (mctx != 0);
+}
+
+/* Log the canonical string form of a GSSAPI name as a debug message. */
+static void
+debug_gss_name(const char *label, gss_name_t name)
+{
+	OM_uint32 lmin;
+	gss_buffer_desc buf = GSS_C_EMPTY_BUFFER;
+
+	if (gss_display_name(&lmin, name, &buf, NULL) == GSS_S_COMPLETE) {
+		debug_f("%s: %.*s", label, (int)buf.length, (char *)buf.value);
+		gss_release_buffer(&lmin, &buf);
+	}
+}
+
+/*
+ * Check whether the user already has valid GSSAPI initiator credentials
+ * (e.g. a Kerberos TGT) in their default credential store with at least
+ * min_lifetime seconds remaining.  Pass GSS_C_INDEFINITE to accept any
+ * positive remaining lifetime.  Runs as the user.
+ * Returns 1 if sufficient credentials exist, 0 otherwise.
+ */
+int
+ssh_gssapi_user_has_valid_tgt(u_int min_lifetime)
+{
+	OM_uint32 major, minor, lifetime = 0;
+	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
+	int found = 0;
+
+	major = gss_acquire_cred(&minor, GSS_C_NO_NAME, GSS_C_INDEFINITE,
+	    GSS_C_NO_OID_SET, GSS_C_INITIATE, &cred, NULL, &lifetime);
+	if (!GSS_ERROR(major) && lifetime > 0 &&
+	    (min_lifetime == GSS_C_INDEFINITE || lifetime >= min_lifetime))
+		found = 1;
+	if (cred != GSS_C_NO_CREDENTIAL)
+		gss_release_cred(&minor, &cred);
+	return found;
+}
+
+
+/*
+ * Perform S4U2Self (protocol transition): acquire a Kerberos service ticket
+ * for the SSH user on behalf of the host principal.  Runs privileged.
+ * Populates gssapi_client.{creds,mech,displayname,exportedname} on success.
+ * Returns 0 on success, -1 on failure.
+ */
+/* Privileged */
+int
+ssh_gssapi_s4u2self(const char *user, u_int lifetime)
+{
+	OM_uint32 major, minor, status;
+	gss_OID_set oidset = GSS_C_NO_OID_SET;
+	gss_name_t host_name = GSS_C_NO_NAME;
+	gss_name_t user_name = GSS_C_NO_NAME;
+	gss_cred_id_t host_creds = GSS_C_NO_CREDENTIAL;
+	gss_cred_id_t impersonated_creds = GSS_C_NO_CREDENTIAL;
+	gss_buffer_desc gssbuf, displayname = GSS_C_EMPTY_BUFFER;
+	char lname[NI_MAXHOST];
+	char *val;
+
+	if (gethostname(lname, sizeof(lname)) != 0) {
+		logit_f("gethostname: %s", strerror(errno));
+		return -1;
+	}
+
+	/* Acquire acceptor credential for host/ from the keytab */
+	gss_create_empty_oid_set(&status, &oidset);
+	gss_add_oid_set_member(&status, &gssapi_kerberos_mech.oid, &oidset);
+
+	xasprintf(&val, "host@%s", lname);
+	gssbuf.value = val;
+	gssbuf.length = strlen(val);
+	major = gss_import_name(&minor, &gssbuf,
+	    GSS_C_NT_HOSTBASED_SERVICE, &host_name);
+	free(val);
+	if (GSS_ERROR(major)) {
+		logit_f("gss_import_name (host) failed");
+		gss_release_oid_set(&status, &oidset);
+		return -1;
+	}
+	debug_gss_name("host name parsed as", host_name);
+
+	debug_f("acquiring host credentials as uid=%u euid=%u, principal=host@%s",
+	    (unsigned)getuid(), (unsigned)geteuid(), lname);
+	#ifdef HAVE_GSS_ACQUIRE_CRED_FROM
+	{
+# if defined(KRB5)
+		/*
+		 * Resolve the keytab path: krb5_kt_default_name respects
+		 * KRB5_KTNAME and krb5.conf default_keytab_name.
+		 */
+		char keytab_name[MAXPATHLEN];
+		krb5_context tmp_ctx;
+
+
+		keytab_name[0] = '\0';
+		if (krb5_init_context(&tmp_ctx) == 0) {
+			(void)krb5_kt_default_name(tmp_ctx, keytab_name,
+			    sizeof(keytab_name));
+			krb5_free_context(tmp_ctx);
+		}
+		if (keytab_name[0] == '\0')
+			strlcpy(keytab_name, "FILE:/etc/krb5.keytab",
+			    sizeof(keytab_name));
+		/*
+		 * client_keytab lets GSSAPI do AS-REQ to obtain a TGT for the
+		 * host principal (initiator role needed for S4U2Self).
+		 * keytab covers the acceptor role.
+		 * ccache: MEMORY: keeps the resulting TGT volatile.
+		 */
+		gss_key_value_element_desc store_elements[] = {
+			{ "client_keytab", keytab_name },
+			{ "keytab", keytab_name },
+			{ "ccache", "MEMORY:" },
+		};
+		const gss_key_value_set_desc cred_store = { 3, store_elements };
+# else
+		gss_key_value_element_desc store_elements[] = {
+			{ "ccache", "MEMORY:" },
+		};
+		const gss_key_value_set_desc cred_store = { 1, store_elements };
+# endif
+
+
+		major = gss_acquire_cred_from(&minor, host_name, lifetime,
+		    oidset, GSS_C_BOTH, &cred_store, &host_creds, NULL, NULL);
+	}
+#else
+	major = gss_acquire_cred(&minor, host_name, lifetime,
+	    oidset, GSS_C_BOTH, &host_creds, NULL, NULL);
+#endif
+	gss_release_name(&minor, &host_name);
+	if (GSS_ERROR(major)) {
+		logit_f("gss_acquire_cred(host@%s) failed as uid=%u euid=%u",
+		    lname, (unsigned)getuid(), (unsigned)geteuid());
+		log_gss_error(major, minor, "S4U2Self: gss_acquire_cred");
+		gss_release_oid_set(&status, &oidset);
+		return -1;
+	}
+
+	/* Import the SSH username as a GSSAPI/Kerberos name */
+	gssbuf.value = (void *)user;
+	gssbuf.length = strlen(user);
+	major = gss_import_name(&minor, &gssbuf,
+	    GSS_C_NT_USER_NAME, &user_name);
+	if (GSS_ERROR(major)) {
+		logit_f("gss_import_name (user) failed");
+		gss_release_cred(&minor, &host_creds);
+		gss_release_oid_set(&status, &oidset);
+		return -1;
+	}
+	debug_gss_name("user name parsed as", user_name);
+
+	/* S4U2Self: obtain a service ticket for the user without their creds */
+	debug_f("calling gss_acquire_cred_impersonate_name for user %.100s", user);
+	major = gss_acquire_cred_impersonate_name(&minor,
+	    host_creds, user_name, lifetime,
+	    oidset, GSS_C_INITIATE,
+	    &impersonated_creds, NULL, NULL);
+
+	gss_release_cred(&minor, &host_creds);
+	gss_release_oid_set(&status, &oidset);
+	if (GSS_ERROR(major)) {
+		logit_f("gss_acquire_cred_impersonate_name failed for %.100s",
+		    user);
+		log_gss_error(major, minor,
+		    "S4U2Self: gss_acquire_cred_impersonate_name");
+		gss_release_name(&minor, &user_name);
+		return -1;
+	}
+
+	/* Get the display name (Kerberos principal string) for storecreds */
+	major = gss_display_name(&minor, user_name, &displayname, NULL);
+	gss_release_name(&minor, &user_name);
+	if (GSS_ERROR(major)) {
+		logit_f("gss_display_name failed");
+		gss_release_cred(&minor, &impersonated_creds);
+		return -1;
+	}
+
+	/* Populate gssapi_client for storecreds_s4u2self and s4u2proxy */
+	gssapi_client.mech = &gssapi_kerberos_mech;
+	gssapi_client.creds = impersonated_creds;
+	gssapi_client.displayname.value = xmalloc(displayname.length + 1);
+	memcpy(gssapi_client.displayname.value,
+	    displayname.value, displayname.length);
+	((char *)gssapi_client.displayname.value)[displayname.length] = '\0';
+	gssapi_client.displayname.length = displayname.length;
+	/*
+	 * exportedname is used by ssh_gssapi_krb5_storecreds → krb5_parse_name.
+	 * gss_display_name for a user-name returns the canonical principal
+	 * string (e.g. user@REALM) which krb5_parse_name can consume directly.
+	 */
+	gssapi_client.exportedname.value = xmalloc(displayname.length + 1);
+	memcpy(gssapi_client.exportedname.value,
+	    displayname.value, displayname.length);
+	((char *)gssapi_client.exportedname.value)[displayname.length] = '\0';
+	gssapi_client.exportedname.length = displayname.length;
+
+	gss_release_buffer(&minor, &displayname);
+	debug_f("S4U2Self succeeded for %.100s", user);
+	return 0;
+}
+
+/* As user — write the S4U2Self ticket into a new ccache via mech->storecreds */
+void
+ssh_gssapi_storecreds_s4u2self(void)
+{
+	if (gssapi_client.mech == NULL || gssapi_client.mech->storecreds == NULL) {
+		debug_f("no GSSAPI mechanism for storing S4U2Self credentials");
+		return;
+	}
+	(*gssapi_client.mech->storecreds)(&gssapi_client);
+}
+
+/*
+ * Perform S4U2Proxy for each configured service principal, then flush all
+ * resulting tickets into the user's ccache.  Runs as user, after
+ * ssh_gssapi_storecreds_s4u2self() has created the ccache.
+ *
+ * gssapi_client.creds (the S4U2Self proxy credential) is passed as the
+ * initiator to gss_init_sec_context(); the GSSAPI library presents the TGT
+ * and evidence ticket to the KDC via S4U2Proxy TGS-REQ.  The output token
+ * (AP-REQ) is discarded — we do not connect to the target service.
+ *
+ * After iterating all services, gss_store_cred() flushes the accumulated
+ * proxy service tickets from the credential's internal ccache into the
+ * KRB5CCNAME ccache that storecreds_s4u2self() already created.
+ */
+/* As user */
+void
+ssh_gssapi_s4u2proxy(char **services, u_int nservices, u_int lifetime)
+{
+	OM_uint32 major, minor;
+	gss_buffer_desc service_buf, output_token = GSS_C_EMPTY_BUFFER;
+	gss_name_t target_name;
+	gss_ctx_id_t ctx;
+	u_int i;
+
+	if (gssapi_client.creds == GSS_C_NO_CREDENTIAL) {
+		debug_f("no proxy credential available");
+		return;
+	}
+	if (gssapi_client.store.envval == NULL) {
+		debug_f("no ccache path set; cannot store proxy tickets");
+		return;
+	}
+
+	debug_f("starting S4U2Proxy as uid=%u euid=%u, %u service(s), ccache=%s",
+	    (unsigned)getuid(), (unsigned)geteuid(), nservices,
+	    gssapi_client.store.envval);
+
+	/* Point the GSSAPI library at the user's ccache for ticket storage */
+	setenv("KRB5CCNAME", gssapi_client.store.envval, 1);
+
+	for (i = 0; i < nservices; i++) {
+		ctx = GSS_C_NO_CONTEXT;
+		target_name = GSS_C_NO_NAME;
+
+		service_buf.value = services[i];
+		service_buf.length = strlen(services[i]);
+
+		/*
+		 * GSS_C_NO_OID: let the library determine the name type.
+		 * With Kerberos as the active mechanism, a fully-qualified
+		 * principal like "svc/host@REALM" is parsed correctly.
+		 */
+		major = gss_import_name(&minor, &service_buf,
+		    GSS_C_NO_OID, &target_name);
+		if (GSS_ERROR(major)) {
+			logit_f("gss_import_name failed for %.200s",
+			    services[i]);
+			log_gss_error(major, minor, "S4U2Proxy: gss_import_name");
+			continue;
+		}
+		debug_gss_name("target service name parsed as", target_name);
+
+		debug_f("calling gss_init_sec_context for %.200s", services[i]);
+		major = gss_init_sec_context(&minor,
+		    gssapi_client.creds,		/* proxy credential */
+		    &ctx, target_name,
+		    GSS_C_NO_OID,			/* default mech (Kerberos) */
+		    0,					/* no flags, no mutual auth */
+		    lifetime,
+		    GSS_C_NO_CHANNEL_BINDINGS,
+		    GSS_C_NO_BUFFER,			/* no input token */
+		    NULL,				/* actual_mech_type */
+		    &output_token,
+		    NULL,				/* ret_flags */
+		    NULL);				/* time_rec */
+
+		gss_release_buffer(&minor, &output_token);
+		gss_release_name(&minor, &target_name);
+		if (ctx != GSS_C_NO_CONTEXT)
+			gss_delete_sec_context(&minor, &ctx, GSS_C_NO_BUFFER);
+
+		if (GSS_ERROR(major)) {
+			logit_f("S4U2Proxy for %.200s on behalf of %.200s failed",
+			    services[i],
+			    (char *)gssapi_client.displayname.value);
+			log_gss_error(major, minor,
+			    "S4U2Proxy: gss_init_sec_context");
+		} else
+			debug_f("S4U2Proxy ticket obtained for %.200s",
+			    services[i]);
+	}
+
+	/*
+	 * Flush all proxy service tickets from the credential's internal
+	 * ccache into the KRB5CCNAME ccache via gss_store_cred().
+	 */
+	major = gss_store_cred(&minor, gssapi_client.creds, GSS_C_INITIATE,
+	    GSS_C_NO_OID, 1 /* overwrite_cred */, 1 /* default_cred */,
+	    NULL, NULL);
+	if (GSS_ERROR(major)) {
+		logit_f("gss_store_cred failed; proxy tickets may be missing");
+		log_gss_error(major, minor, "S4U2Proxy: gss_store_cred");
+	}
+
+	unsetenv("KRB5CCNAME");
+}
+
+#ifndef KRB5
+/* As user - called on fatal/exit; full implementation in gss-serv-krb5.c */
 void
 ssh_gssapi_cleanup_creds(void)
 {
-	krb5_ccache ccache = NULL;
-	krb5_error_code problem;
-
-	if (gssapi_client.store.data != NULL) {
-		if ((problem = krb5_cc_resolve(gssapi_client.store.data, gssapi_client.store.envval, &ccache))) {
-			debug_f("krb5_cc_resolve(): %.100s",
-				krb5_get_err_text(gssapi_client.store.data, problem));
-		} else if ((problem = krb5_cc_destroy(gssapi_client.store.data, ccache))) {
-			debug_f("krb5_cc_destroy(): %.100s",
-				krb5_get_err_text(gssapi_client.store.data, problem));
-		} else {
-			krb5_free_context(gssapi_client.store.data);
-			gssapi_client.store.data = NULL;
-		}
-	}
 }
+
+/*
+ * Filter the user's ccache; full implementation in gss-serv-krb5.c.
+ */
+void
+ssh_gssapi_krb5_filter_ccache(u_int drop_flags,
+    char **proxy_services, u_int nproxy_services)
+{
+}
+#endif /* !KRB5 */
 
 /* As user */
 int

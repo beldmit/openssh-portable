@@ -1393,6 +1393,104 @@ main(int ac, char **av)
 		authctxt->krb5_set_env = ssh_gssapi_storecreds();
 		restore_uid();
 	}
+	/*
+	 * GSSAPIAllowS4U2Self / GSSAPIProxyS4U2Services: if no credentials were stored
+	 * above (i.e. no GSSAPI auth with delegation occurred), use S4U2Self
+	 * to obtain an impersonated credential for the user, then optionally
+	 * follow with S4U2Proxy for configured target services.
+	 *
+	 * GSSAPIAllowS4U2Self alone:    store S4U2Self evidence ticket only;
+	 *                            the host TGT is removed.
+	 * GSSAPIProxyS4U2Services alone: store host TGT and S4U2Proxy service
+	 *                            tickets; the S4U2Self evidence ticket
+	 *                            is removed.
+	 * Both:                     store host TGT, S4U2Self evidence ticket,
+	 *                            and all S4U2Proxy service tickets.
+	 *
+	 * When S4U2Proxy tickets are present the host TGT must remain in the
+	 * ccache; applications check for TGT presence to determine whether
+	 * Kerberos credentials are available.  Only in GSSAPIAllowS4U2Self-alone
+	 * mode (no proxy tickets) is the host TGT removed.
+	 *
+	 * Skip S4U2Self when the user already has credentials covering the
+	 * requested lifetime: check for a valid TGT in the GSSAPIAllowS4U2Self-
+	 * alone case, or for valid proxy tickets for every configured service
+	 * otherwise.
+	 */
+	if ((options.gss_allow_s4u2self || options.num_gss_proxy_services > 0) &&
+	    !ssh_gssapi_credentials_stored()) {
+		u_int lifetime = (!options.gss_allow_s4u2self ||
+		    options.gss_allow_s4u2self == INT_MAX) ?
+		    GSS_C_INDEFINITE : (u_int)options.gss_allow_s4u2self;
+		int skip = 0;
+
+		temporarily_use_uid(authctxt->pw);
+		if (options.gss_allow_s4u2self &&
+		    options.num_gss_proxy_services == 0) {
+			/* S4U2Self-alone: skip if user already has a valid TGT */
+			skip = ssh_gssapi_user_has_valid_tgt(lifetime);
+		} else if (options.num_gss_proxy_services > 0) {
+			/*
+			 * Proxy-only or both: skip if every configured service
+			 * already has a valid ticket in the user's ccache.
+			 * Service tickets are not GSSAPI initiator credentials,
+			 * so gss_acquire_cred() cannot be used; iterate the
+			 * ccache with the krb5 API instead.
+			 */
+			skip = ssh_gssapi_user_has_valid_proxy_tickets(
+			    options.gss_proxy_services,
+			    options.num_gss_proxy_services,
+			    lifetime);
+		}
+		restore_uid();
+
+		if (skip) {
+			debug_f("user %.100s already has valid Kerberos "
+			    "credentials, skipping S4U2Self",
+			    authctxt->user);
+		} else if (ssh_gssapi_s4u2self(authctxt->user, lifetime) == 0) {
+			u_int filter;
+
+			temporarily_use_uid(authctxt->pw);
+			/*
+			 * Always create the ccache via storecreds_s4u2self so
+			 * that s4u2proxy has a ccache to store tickets into.
+			 * gss_krb5_copy_ccache() copies the host service's own
+			 * TGT along with the evidence ticket; filter_ccache
+			 * removes the ticket classes that should not be kept.
+			 */
+			ssh_gssapi_storecreds_s4u2self();
+			if (options.num_gss_proxy_services > 0)
+				ssh_gssapi_s4u2proxy(
+				    options.gss_proxy_services,
+				    options.num_gss_proxy_services,
+				    lifetime);
+
+			/*
+			 * Remove the host TGT only in GSSAPIAllowS4U2Self-alone
+			 * mode; when proxy tickets are present the TGT must
+			 * stay so that applications recognise the ccache as
+			 * holding live Kerberos credentials.
+			 * Remove the S4U2Self evidence ticket in proxy-only
+			 * mode (GSSAPIProxyS4U2Services without GSSAPIAllowS4U2Self).
+			 */
+			filter = 0;
+			if (options.gss_allow_s4u2self &&
+			    options.num_gss_proxy_services == 0)
+				filter = SSH_GSSAPI_CCFILTER_TGT |
+				    SSH_GSSAPI_CCFILTER_PROXY;
+			else if (!options.gss_allow_s4u2self)
+				filter = SSH_GSSAPI_CCFILTER_SELF;
+			if (filter != 0)
+				ssh_gssapi_krb5_filter_ccache(filter,
+				    options.gss_proxy_services,
+				    options.num_gss_proxy_services);
+			restore_uid();
+		} else {
+			logit("S4U2Self failed for user %.100s, continuing",
+			    authctxt->user);
+		}
+	}
 #endif
 #ifdef WITH_SELINUX
 	sshd_selinux_setup_exec_context(authctxt->pw->pw_name,

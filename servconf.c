@@ -149,6 +149,9 @@ initialize_server_options(ServerOptions *options)
 	options->gss_indicators = NULL;
 	options->gss_store_rekey = -1;
 	options->gss_kex_algorithms = NULL;
+	options->gss_allow_s4u2self = -1;
+	options->gss_proxy_services = NULL;
+	options->num_gss_proxy_services = 0;
 	options->use_kuserok = -1;
 	options->enable_k5users = -1;
 	options->password_authentication = -1;
@@ -406,6 +409,8 @@ fill_default_server_options(ServerOptions *options)
 		options->gss_deleg_creds = 1;
 	if (options->gss_strict_acceptor == -1)
 		options->gss_strict_acceptor = 1;
+	if (options->gss_allow_s4u2self == -1)
+		options->gss_allow_s4u2self = 0;
 	if (options->gss_store_rekey == -1)
 		options->gss_store_rekey = 0;
 #ifdef GSSAPI
@@ -603,6 +608,7 @@ typedef enum {
 	sHostKeyAlgorithms, sPerSourceMaxStartups, sPerSourceNetBlockSize,
 	sPerSourcePenalties, sPerSourcePenaltyExemptList,
 	sClientAliveInterval, sClientAliveCountMax, sAuthorizedKeysFile,
+	sGssAllowS4U2Self, sGssProxyS4U2Services,
 	sGssAuthentication, sGssCleanupCreds, sGssDelegateCreds, sGssEnablek5users, sGssStrictAcceptor,
 	sGssIndicators, sGssKeyEx, sGssKexAlgorithms, sGssStoreRekey,
 	sAcceptEnv, sSetEnv, sPermitTunnel,
@@ -702,6 +708,8 @@ static struct {
 	{ "gssapikexalgorithms", sGssKexAlgorithms, SSHCFG_GLOBAL },
 	{ "gssapienablek5users", sGssEnablek5users, SSHCFG_ALL },
 	{ "gssapiindicators", sGssIndicators, SSHCFG_ALL },
+	{ "gssapiallows4u2self", sGssAllowS4U2Self, SSHCFG_ALL },
+	{ "gssapiproxys4u2services", sGssProxyS4U2Services, SSHCFG_ALL },
 #else
 	{ "gssapiauthentication", sUnsupported, SSHCFG_ALL },
 	{ "gssapicleanupcredentials", sUnsupported, SSHCFG_GLOBAL },
@@ -713,6 +721,8 @@ static struct {
 	{ "gssapikexalgorithms", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapienablek5users", sUnsupported, SSHCFG_ALL },
 	{ "gssapiindicators", sUnsupported, SSHCFG_ALL },
+	{ "gssapiallows4u2self", sUnsupported, SSHCFG_ALL },
+	{ "gssapiproxys4u2services", sUnsupported, SSHCFG_ALL },
 #endif
 	{ "gssusesessionccache", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapiusesessioncredcache", sUnsupported, SSHCFG_GLOBAL },
@@ -1752,6 +1762,44 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 			    filename, linenum, keyword);
 		if (options->gss_indicators == NULL)
 			options->gss_indicators = xstrdup(arg);
+		break;
+
+	case sGssAllowS4U2Self:
+		arg = argv_next(&ac, &av);
+		if (!arg || *arg == '\0')
+			fatal("%s line %d: %s missing argument.",
+			    filename, linenum, keyword);
+		if (strcasecmp(arg, "no") == 0)
+			value = 0;
+		else if (strcasecmp(arg, "yes") == 0)
+			value = INT_MAX;
+		else if ((value = convtime(arg)) <= 0)
+			fatal("%s line %d: invalid %s value \"%s\".",
+			    filename, linenum, keyword, arg);
+		if (*activep && options->gss_allow_s4u2self == -1)
+			options->gss_allow_s4u2self = value;
+		break;
+
+	case sGssProxyS4U2Services:
+		while ((arg = argv_next(&ac, &av)) != NULL) {
+			if (*arg == '\0')
+				fatal("%s line %d: %s missing argument.",
+				    filename, linenum, keyword);
+			if (strcasecmp(arg, "none") == 0) {
+				/* "none" clears any previous list */
+				for (i = 0; i < options->num_gss_proxy_services; i++)
+					free(options->gss_proxy_services[i]);
+				free(options->gss_proxy_services);
+				options->gss_proxy_services = NULL;
+				options->num_gss_proxy_services = 0;
+				break;
+			}
+			if (!*activep)
+				continue;
+			opt_array_append(filename, linenum, keyword,
+			    &options->gss_proxy_services,
+			    &options->num_gss_proxy_services, arg);
+		}
 		break;
 
 	case sPasswordAuthentication:
@@ -3053,6 +3101,7 @@ copy_set_server_options(ServerOptions *dst, ServerOptions *src, int preauth)
 
 	M_CP_INTOPT(password_authentication);
 	M_CP_INTOPT(gss_authentication);
+	M_CP_INTOPT(gss_allow_s4u2self);
 	M_CP_INTOPT(pubkey_authentication);
 	M_CP_INTOPT(pubkey_auth_options);
 	M_CP_INTOPT(kerberos_authentication);
@@ -3407,6 +3456,15 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sGssStoreRekey, o->gss_store_rekey);
 	dump_cfg_string(sGssKexAlgorithms, o->gss_kex_algorithms);
 	dump_cfg_string(sGssIndicators, o->gss_indicators);
+	if (o->gss_allow_s4u2self == 0)
+		printf("%s no\n", lookup_opcode_name(sGssAllowS4U2Self));
+	else if (o->gss_allow_s4u2self == INT_MAX)
+		printf("%s yes\n", lookup_opcode_name(sGssAllowS4U2Self));
+	else
+		printf("%s %d\n", lookup_opcode_name(sGssAllowS4U2Self),
+		    o->gss_allow_s4u2self);
+	dump_cfg_strarray_oneline(sGssProxyS4U2Services, o->num_gss_proxy_services,
+	    o->gss_proxy_services);
 #endif
 	dump_cfg_fmtint(sPasswordAuthentication, o->password_authentication);
 	dump_cfg_fmtint(sKbdInteractiveAuthentication,

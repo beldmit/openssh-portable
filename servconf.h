@@ -161,6 +161,9 @@ typedef struct {
 	int     gss_cleanup_creds;	/* If true, destroy cred cache on logout */
 	int     gss_deleg_creds;	/* If true, accept delegated GSS credentials */
 	int     gss_strict_acceptor;	/* If true, restrict the GSSAPI acceptor name */
+	int     gss_allow_s4u2self; /* 0=no, INT_MAX=yes (GSS_C_INDEFINITE), >0=ticket lifetime s */
+	char  **gss_proxy_services; /* S4U2Proxy target service principals */
+	u_int   num_gss_proxy_services;
 	int 	gss_store_rekey;
 	char   *gss_kex_algorithms;	/* GSSAPI kex methods to be offered by client. */
 	int     password_authentication;	/* If true, permit password
@@ -314,6 +317,7 @@ TAILQ_HEAD(include_list, include_item);
 		M_CP_STROPT(permit_user_env_allowlist); \
 		M_CP_STROPT(pam_service_name); \
 		M_CP_STROPT(gss_indicators); \
+		M_CP_STRARRAYOPT(gss_proxy_services, num_gss_proxy_services, 1); \
 		M_CP_STRARRAYOPT(authorized_keys_files, num_authkeys_files, 1);\
 		M_CP_STRARRAYOPT(revoked_keys_files, \
 		    num_revoked_keys_files, 1); \

@@ -846,6 +846,76 @@ FIDO2-based pre-authentication in FreeIPA, using FIDO2 USB and NFC tokens
 The default
 .Dq none
 is to not use GSSAPI authentication indicators for access decisions.
+.It Cm GSSAPIAllowS4U2Self
+Controls whether the SSH server performs a Kerberos protocol transition
+(S4U2Self) after a successful authentication using any other method.
+Accepted values are
+.Cm no ,
+.Cm yes ,
+or a time interval (see
+.Sx TIME FORMATS
+below).
+.Cm no
+disables S4U2Self entirely.
+.Cm yes
+enables S4U2Self and requests a ticket with the maximum lifetime
+permitted by the KDC.
+A time interval (e.g.\&
+.Cm 8h ,
+.Cm 1d )
+enables S4U2Self and requests a ticket valid for at most that duration.
+The option is a no-op when delegated GSSAPI credentials are already available.
+The obtained service ticket is stored in the default credentials cache and is
+accessible to any application that has access to the Kerberos host principal
+.Pq host/machine.fqdn@REALM
+credentials on the same host.
+.Pp
+The default is
+.Cm no .
+.It Cm GSSAPIProxyS4U2Services
+Specifies a list of Kerberos service principals for which constrained
+delegation (S4U2Proxy) tickets should be obtained after a successful
+S4U2Self protocol transition.
+Each entry must be a fully-qualified Kerberos principal name of the form
+.Ar service/host@REALM .
+Multiple principals may be listed, separated by whitespace.
+The keyword
+.Cm none
+clears any previously set list.
+.Pp
+This option may be used independently of
+.Cm GSSAPIAllowS4U2Self .
+When S4U2Self succeeds, the server iterates the list and calls
+.Xr gss_init_sec_context 3
+for each principal with the proxy credential obtained by S4U2Self as
+the initiator.
+The GSSAPI library presents the evidence ticket to the KDC via an
+S4U2Proxy TGS-REQ; if the host service holds the necessary constrained-
+delegation permission in the KDC, a service ticket from the user to
+the target service is issued.
+These tickets are accumulated and then flushed into the user's ccache
+via
+.Xr gss_store_cred 3 ,
+so that any application running in the user's session can use them
+without further interaction.
+The AP-REQ output token of each
+.Xr gss_init_sec_context 3
+call is discarded; no network connection to the target service is made.
+.Pp
+When used together with
+.Cm GSSAPIAllowS4U2Self ,
+the TGT and S4U2Self ticket are also stored in the user's ccache in
+addition to the S4U2Proxy service tickets.
+When used alone (without
+.Cm GSSAPIAllowS4U2Self ) ,
+only the S4U2Proxy service tickets are stored; the intermediate S4U2Self
+credential is not placed in the user's ccache.
+.Pp
+This option supports
+.Cm Match
+blocks, allowing per-user or per-host lists of delegation targets.
+.Pp
+The default is empty (no S4U2Proxy delegation is performed).
 .It Cm HostbasedAcceptedAlgorithms
 The default is handled system-wide by
 .Xr crypto-policies 7 .
