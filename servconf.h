@@ -239,6 +239,7 @@ SSHCONF_INTFLAG(expose_userauth_info, ExposeAuthInfo, SSHCFG_ALL, 0, SSHCFG_COPY
 SSHCONF_STRING(sk_provider, SecurityKeyProvider, SSHCFG_GLOBAL, SSHCFG_COPY_NONE) \
 SSHCONF_INT(required_rsa_size, RequiredRSASize, SSHCFG_ALL, NULL, SSH_RSA_MINIMUM_MODULUS_SIZE, SSHCFG_COPY_MATCH) \
 SSHCONF_STRARRAY(channel_timeouts, num_channel_timeouts, ChannelTimeout, SSHCFG_ALL, SSHCFG_COPY_MATCH) \
+SSHCONF_STRARRAY(gss_proxy_services, num_gss_proxy_services, GSSAPIProxyS4U2Services, SSHCFG_ALL, SSHCFG_COPY_MATCH) \
 SSHCONF_INT(unused_connection_timeout, UnusedConnectionTimeout, SSHCFG_ALL, NULL, 0, SSHCFG_COPY_MATCH) \
 SSHCONF_STRING(sshd_session_path, SshdSessionPath, SSHCFG_GLOBAL, SSHCFG_COPY_NONE) \
 SSHCONF_STRING(sshd_auth_path, SshdAuthPath, SSHCFG_GLOBAL, SSHCFG_COPY_NONE) \
@@ -336,7 +337,8 @@ SSHCONF_INTFLAG(gss_keyex, GSSAPIKeyExchange, SSHCFG_GLOBAL, 0, SSHCFG_COPY_NONE
 SSHCONF_INTFLAG(gss_store_rekey, GSSAPIStoreCredentialsOnRekey, SSHCFG_GLOBAL, 0, SSHCFG_COPY_NONE) \
 SSHCONF_STRING(gss_kex_algorithms, GSSAPIKexAlgorithms, SSHCFG_GLOBAL, SSHCFG_COPY_NONE) \
 SSHCONF_INTFLAG(enable_k5users, GSSAPIEnablek5users, SSHCFG_ALL, 0, SSHCFG_COPY_MATCH) \
-SSHCONF_STRING(gss_indicators, GSSAPIIndicators, SSHCFG_ALL, SSHCFG_COPY_MATCH)
+SSHCONF_STRING(gss_indicators, GSSAPIIndicators, SSHCFG_ALL, SSHCFG_COPY_MATCH) \
+SSHCONF_INTFLAG(gss_allow_s4u2self, GSSAPIAllowS4U2Self, SSHCFG_ALL, 0, SSHCFG_COPY_MATCH)
 #else /* GSSAPI */
 #define SSHD_CONFIG_ENTRIES_GSS \
 SSHCONF_UNSUPPORTED_INT(gss_authentication, GSSAPIAuthentication, SSHCFG_ALL) \
@@ -347,7 +349,8 @@ SSHCONF_UNSUPPORTED_INT(gss_keyex, GSSAPIKeyExchange, SSHCFG_GLOBAL) \
 SSHCONF_UNSUPPORTED_INT(gss_store_rekey, GSSAPIStoreCredentialsOnRekey, SSHCFG_GLOBAL) \
 SSHCONF_UNSUPPORTED_STRING(gss_kex_algorithms, GSSAPIKexAlgorithms, SSHCFG_GLOBAL) \
 SSHCONF_UNSUPPORTED_INT(enable_k5users, GSSAPIEnablek5users, SSHCFG_ALL) \
-SSHCONF_UNSUPPORTED_STRING(gss_indicators, GSSAPIIndicators, SSHCFG_ALL)
+SSHCONF_UNSUPPORTED_STRING(gss_indicators, GSSAPIIndicators, SSHCFG_ALL) \
+SSHCONF_UNSUPPORTED_INT(gss_allow_s4u2self, GSSAPIAllowS4U2Self, SSHCFG_ALL)
 #endif /* GSSAPI */
 
 #define SSHD_CONFIG_ENTRIES \
