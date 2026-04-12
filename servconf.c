@@ -145,6 +145,7 @@ initialize_server_options(ServerOptions *options)
 	options->gss_cleanup_creds = -1;
 	options->gss_deleg_creds = -1;
 	options->gss_strict_acceptor = -1;
+	options->gss_indicators = NULL;
 	options->gss_store_rekey = -1;
 	options->gss_kex_algorithms = NULL;
 	options->use_kuserok = -1;
@@ -560,6 +561,7 @@ fill_default_server_options(ServerOptions *options)
 	CLEAR_ON_NONE(options->routing_domain);
 	CLEAR_ON_NONE(options->host_key_agent);
 	CLEAR_ON_NONE(options->per_source_penalty_exempt);
+	CLEAR_ON_NONE(options->gss_indicators);
 
 	for (i = 0; i < options->num_host_key_files; i++)
 		CLEAR_ON_NONE(options->host_key_files[i]);
@@ -599,7 +601,7 @@ typedef enum {
 	sPerSourcePenalties, sPerSourcePenaltyExemptList,
 	sClientAliveInterval, sClientAliveCountMax, sAuthorizedKeysFile,
 	sGssAuthentication, sGssCleanupCreds, sGssDelegateCreds, sGssEnablek5users, sGssStrictAcceptor,
-	sGssKeyEx, sGssKexAlgorithms, sGssStoreRekey,
+	sGssIndicators, sGssKeyEx, sGssKexAlgorithms, sGssStoreRekey,
 	sAcceptEnv, sSetEnv, sPermitTunnel,
 	sMatch, sPermitOpen, sPermitListen, sForceCommand, sChrootDirectory,
 	sUsePrivilegeSeparation, sAllowAgentForwarding,
@@ -696,6 +698,7 @@ static struct {
 	{ "gssapistorecredentialsonrekey", sGssStoreRekey, SSHCFG_GLOBAL },
 	{ "gssapikexalgorithms", sGssKexAlgorithms, SSHCFG_GLOBAL },
 	{ "gssapienablek5users", sGssEnablek5users, SSHCFG_ALL },
+	{ "gssapiindicators", sGssIndicators, SSHCFG_ALL },
 #else
 	{ "gssapiauthentication", sUnsupported, SSHCFG_ALL },
 	{ "gssapicleanupcredentials", sUnsupported, SSHCFG_GLOBAL },
@@ -706,6 +709,7 @@ static struct {
 	{ "gssapistorecredentialsonrekey", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapikexalgorithms", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapienablek5users", sUnsupported, SSHCFG_ALL },
+	{ "gssapiindicators", sUnsupported, SSHCFG_ALL },
 #endif
 	{ "gssusesessionccache", sUnsupported, SSHCFG_GLOBAL },
 	{ "gssapiusesessioncredcache", sUnsupported, SSHCFG_GLOBAL },
@@ -1735,6 +1739,15 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 			    filename, linenum, arg ? arg : "<NONE>");
 		if (*activep && options->gss_kex_algorithms == NULL)
 			options->gss_kex_algorithms = xstrdup(arg);
+		break;
+
+	case sGssIndicators:
+		arg = argv_next(&ac, &av);
+		if (!arg || *arg == '\0')
+			fatal("%s line %d: %s missing argument.",
+			    filename, linenum, keyword);
+		if (options->gss_indicators == NULL)
+			options->gss_indicators = xstrdup(arg);
 		break;
 
 	case sPasswordAuthentication:
@@ -3383,6 +3396,7 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sGssStrictAcceptor, o->gss_strict_acceptor);
 	dump_cfg_fmtint(sGssStoreRekey, o->gss_store_rekey);
 	dump_cfg_string(sGssKexAlgorithms, o->gss_kex_algorithms);
+	dump_cfg_string(sGssIndicators, o->gss_indicators);
 #endif
 	dump_cfg_fmtint(sPasswordAuthentication, o->password_authentication);
 	dump_cfg_fmtint(sKbdInteractiveAuthentication,
