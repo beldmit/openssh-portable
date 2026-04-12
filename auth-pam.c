@@ -455,6 +455,7 @@ static int
 check_pam_user(Authctxt *authctxt)
 {
 	const char *pam_user;
+	const struct passwd *pam_pw;
 
 	if (authctxt == NULL || authctxt->pw == NULL ||
 	    authctxt->pw->pw_name == NULL)
@@ -469,11 +470,10 @@ check_pam_user(Authctxt *authctxt)
 		return PAM_USER_UNKNOWN;
 	}
 
-	if (sshpam_initial_user == NULL)
-		fatal_f("internal error: sshpam_initial_user NULL");
-	if (strcmp(sshpam_initial_user, pam_user) != 0) {
-		error_f("PAM user \"%s\" does not match previous \"%s\"",
-		      pam_user, sshpam_initial_user);
+	pam_pw = getpwnam(pam_user);
+	if (pam_pw == NULL || pam_pw->pw_uid != authctxt->pw->pw_uid) {
+		debug("PAM user \"%s\" does not match expected \"%s\"",
+		      pam_user, authctxt->pw->pw_name);
 		return PAM_USER_UNKNOWN;
 	}
 	return PAM_SUCCESS;
