@@ -5137,10 +5137,16 @@ AC_ARG_WITH([kerberos5],
 #elif defined(HAVE_GSSAPI_GSSAPI_GENERIC_H)
 # include <gssapi/gssapi_generic.h>
 #endif
+#ifdef HAVE_GSSAPI_EXT_H
+# include <gssapi/gssapi_ext.h>
+#endif
+#ifdef HAVE_GSSAPI_KRB5_H
+# include <gssapi/gssapi_krb5.h>
+#endif
 		]])
 		saved_LIBS="$LIBS"
-		LIBS="$LIBS $K5LIBS"
-		AC_CHECK_FUNCS([krb5_cc_new_unique krb5_get_error_message krb5_free_error_message])
+		LIBS="$LIBS $GSSLIBS $K5LIBS "
+		AC_CHECK_FUNCS([krb5_cc_new_unique krb5_get_error_message krb5_free_error_message gss_acquire_cred_from])
 		LIBS="$saved_LIBS"
 
 	fi
