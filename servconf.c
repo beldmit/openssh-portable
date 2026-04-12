@@ -458,6 +458,7 @@ fill_default_server_options(ServerOptions *options)
 	CLEAR_ON_NONE(options->routing_domain);
 	CLEAR_ON_NONE(options->host_key_agent);
 	CLEAR_ON_NONE(options->per_source_penalty_exempt);
+	CLEAR_ON_NONE(options->gss_indicators);
 
 	for (i = 0; i < options->num_host_key_files; i++)
 		CLEAR_ON_NONE(options->host_key_files[i]);
@@ -1489,6 +1490,15 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 			    filename, linenum, arg ? arg : "<NONE>");
 		if (*activep && options->gss_kex_algorithms == NULL)
 			options->gss_kex_algorithms = xstrdup(arg);
+		break;
+
+	case sGSSAPIIndicators:
+		arg = argv_next(&ac, &av);
+		if (!arg || *arg == '\0')
+			fatal("%s line %d: %s missing argument.",
+			    filename, linenum, keyword);
+		if (options->gss_indicators == NULL)
+			options->gss_indicators = xstrdup(arg);
 		break;
 #endif /* GSSAPI */
 
@@ -4275,6 +4285,7 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sGSSAPIStrictAcceptorCheck, o->gss_strict_acceptor);
 	dump_cfg_fmtint(sGSSAPIStoreCredentialsOnRekey, o->gss_store_rekey);
 	dump_cfg_string(sGSSAPIKexAlgorithms, o->gss_kex_algorithms);
+	dump_cfg_string(sGSSAPIIndicators, o->gss_indicators);
 #endif
 	dump_cfg_fmtint(sPasswordAuthentication, o->password_authentication);
 	dump_cfg_fmtint(sKbdInteractiveAuthentication,
