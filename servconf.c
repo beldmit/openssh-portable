@@ -1500,6 +1500,43 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 		if (options->gss_indicators == NULL)
 			options->gss_indicators = xstrdup(arg);
 		break;
+
+	case sGSSAPIAllowS4U2Self:
+		arg = argv_next(&ac, &av);
+		if (!arg || *arg == '\0')
+			fatal("%s line %d: %s missing argument.",
+			    filename, linenum, keyword);
+		if (strcasecmp(arg, "no") == 0)
+			value = 0;
+		else if (strcasecmp(arg, "yes") == 0)
+			value = INT_MAX;
+		else if ((value = convtime(arg)) <= 0)
+			fatal("%s line %d: invalid %s value \"%s\".",
+			    filename, linenum, keyword, arg);
+		if (*activep && options->gss_allow_s4u2self == -1)
+			options->gss_allow_s4u2self = value;
+		break;
+
+	case sGSSAPIProxyS4U2Services:
+		while ((arg = argv_next(&ac, &av)) != NULL) {
+			if (*arg == '\0')
+				fatal("%s line %d: %s missing argument.",
+				    filename, linenum, keyword);
+			if (strcasecmp(arg, "none") == 0) {
+				for (i = 0; i < options->num_gss_proxy_services; i++)
+					free(options->gss_proxy_services[i]);
+				free(options->gss_proxy_services);
+				options->gss_proxy_services = NULL;
+				options->num_gss_proxy_services = 0;
+				break;
+			}
+			if (!*activep)
+				continue;
+			opt_array_append(filename, linenum, keyword,
+			    &options->gss_proxy_services,
+			    &options->num_gss_proxy_services, arg);
+		}
+		break;
 #endif /* GSSAPI */
 
 	case sPasswordAuthentication:
@@ -4291,6 +4328,15 @@ dump_config(ServerOptions *o)
 	dump_cfg_fmtint(sGSSAPIStoreCredentialsOnRekey, o->gss_store_rekey);
 	dump_cfg_string(sGSSAPIKexAlgorithms, o->gss_kex_algorithms);
 	dump_cfg_string(sGSSAPIIndicators, o->gss_indicators);
+	if (o->gss_allow_s4u2self == 0)
+		printf("%s no\n", lookup_opcode_name(sGSSAPIAllowS4U2Self));
+	else if (o->gss_allow_s4u2self == INT_MAX)
+		printf("%s yes\n", lookup_opcode_name(sGSSAPIAllowS4U2Self));
+	else
+		printf("%s %d\n", lookup_opcode_name(sGSSAPIAllowS4U2Self),
+		    o->gss_allow_s4u2self);
+	dump_cfg_strarray_oneline(sGSSAPIProxyS4U2Services,
+	    o->num_gss_proxy_services, o->gss_proxy_services);
 #endif
 	dump_cfg_fmtint(sPasswordAuthentication, o->password_authentication);
 	dump_cfg_fmtint(sKbdInteractiveAuthentication,
