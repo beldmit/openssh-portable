@@ -282,6 +282,7 @@ input_gssapi_mic(int type, uint32_t plen, struct ssh *ssh)
 	Authctxt *authctxt = ssh->authctxt;
 	Gssctxt *gssctxt;
 	int r, authenticated = 0;
+	char *micuser;
 	struct sshbuf *b;
 	gss_buffer_desc mic, gssbuf;
 	u_char *p;
@@ -299,7 +300,13 @@ input_gssapi_mic(int type, uint32_t plen, struct ssh *ssh)
 		fatal_f("sshbuf_new failed");
 	mic.value = p;
 	mic.length = len;
-	ssh_gssapi_buildmic(b, authctxt->user, authctxt->service,
+#ifdef WITH_SELINUX
+	if (authctxt->role && authctxt->role[0] != 0)
+		xasprintf(&micuser, "%s/%s", authctxt->user, authctxt->role);
+	else
+#endif
+		micuser = authctxt->user;
+	ssh_gssapi_buildmic(b, micuser, authctxt->service,
 	    "gssapi-with-mic", ssh->kex->session_id);
 
 	if ((gssbuf.value = sshbuf_mutable_ptr(b)) == NULL)
@@ -312,6 +319,8 @@ input_gssapi_mic(int type, uint32_t plen, struct ssh *ssh)
 		logit("GSSAPI MIC check failed");
 
 	sshbuf_free(b);
+	if (micuser != authctxt->user)
+		free(micuser);
 	free(mic.value);
 
 	if (!authenticated)

@@ -71,6 +71,8 @@
 
 /* import */
 extern ServerOptions options;
+extern int inetd_flag;
+extern Authctxt *the_authctxt;
 extern struct authmethod_cfg methodcfg_pubkey;
 
 static char *
@@ -201,9 +203,16 @@ userauth_pubkey(struct ssh *ssh, const char *method)
 			goto done;
 		}
 		/* reconstruct packet */
-		xasprintf(&userstyle, "%s%s%s", authctxt->user,
+		xasprintf(&userstyle, "%s%s%s%s%s", authctxt->user,
 		    authctxt->style ? ":" : "",
-		    authctxt->style ? authctxt->style : "");
+		    authctxt->style ? authctxt->style : "",
+#ifdef WITH_SELINUX
+		    authctxt->role ? "/" : "",
+		    authctxt->role ? authctxt->role : ""
+#else
+		    "", ""
+#endif
+		    );
 		if ((r = sshbuf_put_u8(b, SSH2_MSG_USERAUTH_REQUEST)) != 0 ||
 		    (r = sshbuf_put_cstring(b, userstyle)) != 0 ||
 		    (r = sshbuf_put_cstring(b, authctxt->service)) != 0 ||
@@ -473,7 +482,8 @@ match_principals_command(struct passwd *user_pw, const struct sshkey *key,
 	if ((pid = subprocess("AuthorizedPrincipalsCommand", command,
 	    ac, av, &f,
 	    SSH_SUBPROCESS_STDOUT_CAPTURE|SSH_SUBPROCESS_STDERR_DISCARD,
-	    runas_pw, temporarily_use_uid, restore_uid)) == 0)
+	    runas_pw, temporarily_use_uid, restore_uid,
+	    inetd_flag, the_authctxt)) == 0)
 		goto out;
 
 	uid_swapped = 1;
@@ -749,7 +759,8 @@ user_key_command_allowed2(struct passwd *user_pw, struct sshkey *key,
 	if ((pid = subprocess("AuthorizedKeysCommand", command,
 	    ac, av, &f,
 	    SSH_SUBPROCESS_STDOUT_CAPTURE|SSH_SUBPROCESS_STDERR_DISCARD,
-	    runas_pw, temporarily_use_uid, restore_uid)) == 0)
+	    runas_pw, temporarily_use_uid, restore_uid,
+	    inetd_flag, the_authctxt)) == 0)
 		goto out;
 
 	uid_swapped = 1;
