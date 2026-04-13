@@ -33,6 +33,8 @@
 #include "openbsd-compat/openbsd-compat.h"
 
 extern ServerOptions options;
+extern int inetd_flag;
+extern Authctxt *the_authctxt;
 
 /* return 1 if we are running with privilege to swap UIDs, 0 otherwise */
 int
@@ -55,7 +57,7 @@ platform_setusercontext(struct passwd *pw)
 {
 #ifdef WITH_SELINUX
 	/* Cache selinux status for later use */
-	(void)ssh_selinux_enabled();
+	(void)sshd_selinux_enabled();
 #endif
 
 #ifdef USE_SOLARIS_PROJECTS
@@ -140,7 +142,9 @@ platform_setusercontext_post_groups(struct passwd *pw)
 	}
 #endif /* HAVE_SETPCRED */
 #ifdef WITH_SELINUX
-	ssh_selinux_setup_exec_context(pw->pw_name);
+	sshd_selinux_setup_exec_context(pw->pw_name,
+	    inetd_flag, do_pam_putenv, the_authctxt,
+	    options.use_pam);
 #endif
 }
 
