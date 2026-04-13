@@ -429,12 +429,18 @@ pkcs11_add_provider(char *name, char *pin, struct sshkey ***keysp,
 		}
 		/* success */
 		ret = 0;
-	} else if (type == SSH2_AGENT_FAILURE) {
-		if ((r = sshbuf_get_u32(msg, &nkeys)) != 0)
-			error_fr(r, "failed to parse failure response");
-	}
-	if (ret != 0) {
-		debug_f("no keys; terminate helper");
+	} else if (type == SSH_AGENT_FAILURE || type == SSH2_AGENT_FAILURE) {
+		if (type == SSH2_AGENT_FAILURE) {
+			if ((r = sshbuf_get_u32(msg, &nkeys)) != 0)
+				error_fr(r, "failed to parse failure response");
+		}
+		/* Provider registered but returned no keys (may need PIN) */
+		/* Don't terminate helper - keep it for later use */
+		ret = 0;
+		nkeys = 0;
+	} else {
+		/* Unexpected response - terminate helper */
+		debug_f("unexpected response %d; terminate helper", type);
 		helper_terminate(helper);
 	}
 	sshbuf_free(msg);
