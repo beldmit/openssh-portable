@@ -1145,7 +1145,7 @@ is_pam_session_open(void)
  * during the ssh authentication process.
  */
 int
-do_pam_putenv(char *name, char *value)
+do_pam_putenv(char *name, const char *value)
 {
 	int ret = 1;
 	char *compound;
