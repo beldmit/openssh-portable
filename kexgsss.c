@@ -239,6 +239,18 @@ input_kexgss_init(int type,
 	case KEX_GSS_C25519_SHA256:
 		r = kex_c25519_enc(kex, client_pubkey, &gss->server_pubkey, &gss->shared_secret);
 		break;
+	case KEX_GSS_MLKEM768NISTP256_SHA256:
+		r = kex_kem_mlkem768nistp256_enc(kex, client_pubkey,
+		    &gss->server_pubkey, &gss->shared_secret);
+		break;
+	case KEX_GSS_MLKEM1024NISTP384_SHA384:
+		r = kex_kem_mlkem1024nistp384_enc(kex, client_pubkey,
+		    &gss->server_pubkey, &gss->shared_secret);
+		break;
+	case KEX_GSS_MLKEM768X25519_SHA256:
+		r = kex_kem_mlkem768x25519_enc(kex, client_pubkey,
+		    &gss->server_pubkey, &gss->shared_secret);
+		break;
 	default:
 		fatal_f("Unexpected KEX type %d", kex->kex_type);
 	}
