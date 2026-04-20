@@ -2044,6 +2044,9 @@ monitor_apply_keystate(struct ssh *ssh, struct monitor *pmonitor)
 		kex->kex[KEX_GSS_GEX_SHA1] = kexgssgex_server;
 		kex->kex[KEX_GSS_NISTP256_SHA256] = kexgss_server;
 		kex->kex[KEX_GSS_C25519_SHA256] = kexgss_server;
+		kex->kex[KEX_GSS_MLKEM768NISTP256_SHA256] = kexgss_server;
+		kex->kex[KEX_GSS_MLKEM1024NISTP384_SHA384] = kexgss_server;
+		kex->kex[KEX_GSS_MLKEM768X25519_SHA256] = kexgss_server;
 	}
 # endif
 #endif /* WITH_OPENSSL */
@@ -2315,8 +2318,8 @@ mm_answer_gss_sign(struct ssh *ssh, int socket, struct sshbuf *m)
 		fatal_fr(r, "buffer error");
 	data.value = p;
 	data.length = len;
-	/* Lengths of SHA-1, SHA-256 and SHA-512 hashes that are used */
-	if (data.length != 20 && data.length != 32 && data.length != 64)
+	/* Lengths of SHA-1, SHA-256, SHA-384 and SHA-512 hashes that are used */
+	if (data.length != 20 && data.length != 32 && data.length != 48 && data.length != 64)
 		fatal_f("data length incorrect: %d", (int) data.length);
 
 	/* Save the session ID on the first time around */

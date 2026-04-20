@@ -136,6 +136,9 @@ gss_kex_families="
     gss-curve25519-sha256-
     gss-group14-sha1-
     gss-gex-sha1-
+    gss-mlkem768nistp256-sha256-
+    gss-mlkem1024nistp384-sha384-
+    gss-mlkem768x25519-sha256-
 "
 
 # Positive tests: each GSS kex algorithm connects successfully
@@ -178,14 +181,22 @@ for kex_family in $gss_kex_families; do
     fi
 done
 
-# Negative test: connection must fail when keytab is missing
-verbose "gss kex negative test: no keytab"
-kex_neg="gss-group14-sha256-"
+# Negative tests: connection must fail when keytab is missing
+gss_kex_neg_families="
+    gss-group14-sha256-
+    gss-mlkem768nistp256-sha256-
+"
 
-if ${SSH} -G -F "$OBJ/ssh_config" \
-    -o "GSSAPIKeyExchange yes" \
-    -o "GSSAPIKexAlgorithms $kex_neg" \
-    "$client@$sshd_hostname" >/dev/null 2>&1; then
+for kex_neg in $gss_kex_neg_families; do
+    if ! ${SSH} -G -F "$OBJ/ssh_config" \
+        -o "GSSAPIKeyExchange yes" \
+        -o "GSSAPIKexAlgorithms $kex_neg" \
+        "$client@$sshd_hostname" >/dev/null 2>&1; then
+        verbose "gss kex $kex_neg not supported, skipping negative test"
+        continue
+    fi
+
+    verbose "gss kex negative test: no keytab ($kex_neg)"
 
     setup_nss_emulation
     setup_kdc
@@ -210,9 +221,9 @@ if ${SSH} -G -F "$OBJ/ssh_config" \
     teardown_nss_emulation
 
     if [ $status -eq 0 ]; then
-        fail "gss kex succeeded without keytab"
+        fail "gss kex $kex_neg succeeded without keytab"
     fi
-fi
+done
 
 unset KRB5CCNAME
 unset KRB5_CONFIG

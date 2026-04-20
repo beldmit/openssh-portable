@@ -109,6 +109,11 @@ static const struct kexalg gss_kexalgs[] = {
 	{ KEX_GSS_NISTP256_SHA256_ID, KEX_GSS_NISTP256_SHA256,
 	    NID_X9_62_prime256v1, SSH_DIGEST_SHA256, KEX_NOT_PQ },
 	{ KEX_GSS_C25519_SHA256_ID, KEX_GSS_C25519_SHA256, 0, SSH_DIGEST_SHA256, KEX_NOT_PQ },
+#ifdef USE_MLKEM768X25519
+	{ KEX_GSS_MLKEM768NISTP256_SHA256_ID, KEX_GSS_MLKEM768NISTP256_SHA256, 0, SSH_DIGEST_SHA256, KEX_IS_PQ },
+	{ KEX_GSS_MLKEM1024NISTP384_SHA384_ID, KEX_GSS_MLKEM1024NISTP384_SHA384, 0, SSH_DIGEST_SHA384, KEX_IS_PQ },
+	{ KEX_GSS_MLKEM768X25519_SHA256_ID, KEX_GSS_MLKEM768X25519_SHA256, 0, SSH_DIGEST_SHA256, KEX_IS_PQ },
+#endif
 #endif
 	{ NULL, 0, -1, -1, 0},
 };
@@ -168,7 +173,10 @@ kex_alg_list_internal(char sep, const struct kexalg *algs)
 	for (k = algs; k->name != NULL; k++) {
 		if (  (strcmp(k->name, KEX_MLKEM768X25519_SHA256) == 0    && x25519mlkem_available == 0)
 		   || (strcmp(k->name, KEX_MLKEM768NISTP256_SHA256) == 0  && nistmlkem_available == 0)
-		   || (strcmp(k->name, KEX_MLKEM1024NISTP384_SHA384) == 0 && nistmlkem_available == 0))
+		   || (strcmp(k->name, KEX_MLKEM1024NISTP384_SHA384) == 0 && nistmlkem_available == 0)
+		   || (strcmp(k->name, KEX_GSS_MLKEM768X25519_SHA256_ID) == 0    && x25519mlkem_available == 0)
+		   || (strcmp(k->name, KEX_GSS_MLKEM768NISTP256_SHA256_ID) == 0  && nistmlkem_available == 0)
+		   || (strcmp(k->name, KEX_GSS_MLKEM1024NISTP384_SHA384_ID) == 0 && nistmlkem_available == 0))
 			continue;
 
 		xextendf(&ret, sep_str, "%s", k->name);
@@ -215,7 +223,10 @@ kex_alg_by_name(const char *name)
 
 	if (  (strcmp(name, KEX_MLKEM768X25519_SHA256) == 0    && x25519mlkem_available == 0)
 	   || (strcmp(name, KEX_MLKEM768NISTP256_SHA256) == 0  && nistmlkem_available == 0)
-	   || (strcmp(name, KEX_MLKEM1024NISTP384_SHA384) == 0 && nistmlkem_available == 0))
+	   || (strcmp(name, KEX_MLKEM1024NISTP384_SHA384) == 0 && nistmlkem_available == 0)
+	   || (strncmp(name, KEX_GSS_MLKEM768X25519_SHA256_ID, strlen(KEX_GSS_MLKEM768X25519_SHA256_ID)) == 0    && x25519mlkem_available == 0)
+	   || (strncmp(name, KEX_GSS_MLKEM768NISTP256_SHA256_ID, strlen(KEX_GSS_MLKEM768NISTP256_SHA256_ID)) == 0  && nistmlkem_available == 0)
+	   || (strncmp(name, KEX_GSS_MLKEM1024NISTP384_SHA384_ID, strlen(KEX_GSS_MLKEM1024NISTP384_SHA384_ID)) == 0 && nistmlkem_available == 0))
 	   return NULL;
 
 	for (k = kexalgs; k->name != NULL; k++) {
