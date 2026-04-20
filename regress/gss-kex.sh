@@ -176,6 +176,9 @@ gss_kex_families="
     gss-curve25519-sha256-
     gss-group14-sha1-
     gss-gex-sha1-
+    gss-mlkem768nistp256-sha256-
+    gss-mlkem1024nistp384-sha384-
+    gss-mlkem768x25519-sha256-
 "
 
 # Positive tests: each GSS kex algorithm connects successfully
@@ -186,9 +189,18 @@ for kex_family in $gss_kex_families; do
 done
 
 # Negative test: connection must fail when keytab is missing
+# Negative tests: connection must fail when keytab is missing
+gss_kex_neg_families="
+    gss-group14-sha256-
+    gss-mlkem768nistp256-sha256-
+"
 verbose "gss kex negative test: no keytab"
-test_gss_kex "gss-group14-sha256-" false 255 \
-    || fail "gss kex succeeded without keytab"
+
+for kex_neg in $gss_kex_meg_families; do
+    verbose "gss kex negative test: no keytab ($kex_neg)"
+    test_gss_kex "$kex_neg" false 255 \
+        || fail "gss kex succeeded without keytab"
+done
 
 unset KRB5CCNAME
 unset KRB5_CONFIG
