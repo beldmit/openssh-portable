@@ -95,6 +95,18 @@ kexgss_final(struct ssh *ssh)
 
 		r = kex_ecdh_dec(kex, gss->server_blob, &shared_secret);
 		break;
+	case KEX_GSS_MLKEM768NISTP256_SHA256:
+		r = kex_kem_mlkem768nistp256_dec(kex, gss->server_blob,
+		    &shared_secret);
+		break;
+	case KEX_GSS_MLKEM1024NISTP384_SHA384:
+		r = kex_kem_mlkem1024nistp384_dec(kex, gss->server_blob,
+		    &shared_secret);
+		break;
+	case KEX_GSS_MLKEM768X25519_SHA256:
+		r = kex_kem_mlkem768x25519_dec(kex, gss->server_blob,
+		    &shared_secret);
+		break;
 	default:
 		r = SSH_ERR_INVALID_ARGUMENT;
 		break;
@@ -148,6 +160,10 @@ kexgss_final(struct ssh *ssh)
 	}
 out:
 	explicit_bzero(kex->c25519_client_key, sizeof(kex->c25519_client_key));
+	explicit_bzero(kex->mlkem768_client_key,
+	    sizeof(kex->mlkem768_client_key));
+	explicit_bzero(kex->mlkem1024_client_key,
+	    sizeof(kex->mlkem1024_client_key));
 	explicit_bzero(hash, sizeof(hash));
 	sshbuf_free(shared_secret);
 	sshbuf_free(kex->client_pub);
@@ -262,6 +278,15 @@ kexgss_client(struct ssh *ssh)
 		break;
 	case KEX_GSS_C25519_SHA256:
 		r = kex_c25519_keypair(kex);
+		break;
+	case KEX_GSS_MLKEM768NISTP256_SHA256:
+		r = kex_kem_mlkem768nistp256_keypair(kex);
+		break;
+	case KEX_GSS_MLKEM1024NISTP384_SHA384:
+		r = kex_kem_mlkem1024nistp384_keypair(kex);
+		break;
+	case KEX_GSS_MLKEM768X25519_SHA256:
+		r = kex_kem_mlkem768x25519_keypair(kex);
 		break;
 	default:
 		fatal_f("Unexpected KEX type %d", kex->kex_type);
