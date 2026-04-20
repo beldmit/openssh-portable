@@ -346,6 +346,9 @@ ssh_kex2(struct ssh *ssh, char *host, struct sockaddr_storage *hostaddr,
 		ssh->kex->kex[KEX_GSS_GEX_SHA1] = kexgssgex_client;
 		ssh->kex->kex[KEX_GSS_NISTP256_SHA256] = kexgss_client;
 		ssh->kex->kex[KEX_GSS_C25519_SHA256] = kexgss_client;
+		ssh->kex->kex[KEX_GSS_MLKEM768NISTP256_SHA256] = kexgss_client;
+		ssh->kex->kex[KEX_GSS_MLKEM1024NISTP384_SHA384] = kexgss_client;
+		ssh->kex->kex[KEX_GSS_MLKEM768X25519_SHA256] = kexgss_client;
 	}
 # endif
 #endif /* WITH_OPENSSL */
