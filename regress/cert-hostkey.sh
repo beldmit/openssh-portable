@@ -74,6 +74,9 @@ PLAIN_TYPES=""
 for i in $SSH_KEYTYPES; do
 	case "$i" in
 	*@openssh.com*)	t="$i" ;;
+	ssh-mldsa-44)	t="mldsa44" ;;
+	ssh-mldsa-65)	t="mldsa65" ;;
+	ssh-mldsa-87)	t="mldsa87" ;;
 	*)		t=`echo "$i" | sed 's/^ssh-//'` ;;
 	esac
 	if [ -z "$PLAIN_TYPES" ]; then

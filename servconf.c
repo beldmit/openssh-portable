@@ -348,6 +348,14 @@ fill_default_server_options(ServerOptions *options)
 		    _PATH_HOST_ED25519_KEY_FILE, 0);
 		servconf_add_hostkey("[default]", 0, options,
 		    _PATH_HOST_MLDSA44_ED25519_KEY_FILE, 0);
+#ifdef OPENSSL_HAS_MLDSA
+		servconf_add_hostkey("[default]", 0, options,
+		    _PATH_HOST_MLDSA44_KEY_FILE, 0);
+		servconf_add_hostkey("[default]", 0, options,
+		    _PATH_HOST_MLDSA65_KEY_FILE, 0);
+		servconf_add_hostkey("[default]", 0, options,
+		    _PATH_HOST_MLDSA87_KEY_FILE, 0);
+#endif
 	}
 	/* No certificates by default */
 	if (options->num_ports == 0)

@@ -605,6 +605,14 @@ ssh_add_identity_constrained(int sock, struct sshkey *key,
 	case KEY_ECDSA_CERT:
 	case KEY_ECDSA_SK:
 	case KEY_ECDSA_SK_CERT:
+#ifdef OPENSSL_HAS_MLDSA
+	case KEY_MLDSA44:
+	case KEY_MLDSA44_CERT:
+	case KEY_MLDSA65:
+	case KEY_MLDSA65_CERT:
+	case KEY_MLDSA87:
+	case KEY_MLDSA87_CERT:
+#endif
 #endif
 	case KEY_ED25519:
 	case KEY_ED25519_CERT:

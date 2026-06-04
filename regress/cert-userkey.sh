@@ -14,6 +14,9 @@ PLAIN_TYPES=""
 for i in `$SSH -Q key-plain | maybe_filter_sk`; do
 	case "$i" in
 	*@openssh.com*)	t="$i" ;;
+	ssh-mldsa-44)	t="mldsa44" ;;
+	ssh-mldsa-65)	t="mldsa65" ;;
+	ssh-mldsa-87)	t="mldsa87" ;;
 	*)		t=`echo "$i" | sed 's/^ssh-//'` ;;
 	esac
 	if [ -z "$PLAIN_TYPES" ]; then
@@ -35,6 +38,10 @@ kname() {
 	rsa-sha2-*) n="$1" ;;
 	sk-ecdsa-*) n="sk-ecdsa" ;;
 	sk-ssh-ed25519*) n="sk-ssh-ed25519" ;;
+	ssh-mldsa*) n=`echo "$1" | sed 's/@.*//'` ;;
+	mldsa44) n="ssh-mldsa-44" ;;
+	mldsa65) n="ssh-mldsa-65" ;;
+	mldsa87) n="ssh-mldsa-87" ;;
 	# subshell because some seds will add a newline
 	*) n=$(echo $1 | sed 's/^rsa/ssh-rsa/;s/^ed/ssh-ed/;s/^mldsa/ssh-mldsa/') ;;
 	esac
