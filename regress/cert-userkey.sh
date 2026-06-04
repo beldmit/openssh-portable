@@ -36,6 +36,7 @@ kname() {
 	sk-ecdsa-*) n="sk-ecdsa" ;;
 	sk-ssh-ed25519*) n="sk-ssh-ed25519" ;;
 	ssh-mldsa*) n=`echo "$1" | sed 's/@.*//'` ;;
+	mldsa-*) n="ssh-$1" ;;
 	# subshell because some seds will add a newline
 	*) n=$(echo $1 | sed 's/^rsa/ssh-rsa/;s/^ed/ssh-ed/') ;;
 	esac

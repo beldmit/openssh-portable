@@ -31,6 +31,7 @@ for fmt in '' RFC4716 PKCS8 PEM; do
 		# stored in old formats.
 		case "$t" in
 		ssh-ed25519|*openssh.com) test -z "$oldfmt" || continue ;;
+		ssh-mldsa-*) test "$fmt" = "PEM" && continue ;;
 		esac
 		comment="foo bar"
 		fmtarg=""
