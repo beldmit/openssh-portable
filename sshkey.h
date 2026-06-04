@@ -69,6 +69,12 @@ enum sshkey_types {
 	KEY_ED25519_SK_CERT,
 	KEY_MLDSA44_ED25519,
 	KEY_MLDSA44_ED25519_CERT,
+	KEY_MLDSA44,
+	KEY_MLDSA65,
+	KEY_MLDSA87,
+	KEY_MLDSA44_CERT,
+	KEY_MLDSA65_CERT,
+	KEY_MLDSA87_CERT,
 	KEY_NULL,
 	KEY_UNSPEC
 };
@@ -146,6 +152,13 @@ struct sshkey {
 
 #define	ED25519_SK_SZ	crypto_sign_ed25519_SECRETKEYBYTES
 #define	ED25519_PK_SZ	crypto_sign_ed25519_PUBLICKEYBYTES
+
+#define	MLDSA44_PK_SZ	1312
+#define	MLDSA44_SIG_SZ	2420
+#define	MLDSA65_PK_SZ	1952
+#define	MLDSA65_SIG_SZ	3309
+#define	MLDSA87_PK_SZ	2592
+#define	MLDSA87_SIG_SZ	4627
 
 /* Additional fields contained in signature */
 struct sshkey_sig_details {
