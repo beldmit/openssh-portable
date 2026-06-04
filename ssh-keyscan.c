@@ -65,12 +65,25 @@ int ssh_port = SSH_DEFAULT_PORT;
 #define KT_ED25519	(1<<2)
 #define KT_ECDSA_SK	(1<<4)
 #define KT_ED25519_SK	(1<<5)
+#ifdef OPENSSL_HAS_MLDSA
+#define KT_MLDSA44	(1<<6)
+#define KT_MLDSA65	(1<<7)
+#define KT_MLDSA87	(1<<8)
+#endif
 
 #define KT_MIN		KT_RSA
+#ifdef OPENSSL_HAS_MLDSA
+#define KT_MAX		KT_MLDSA87
+#else
 #define KT_MAX		KT_ED25519_SK
+#endif
 
 int get_cert = 0;
-int get_keytypes = KT_RSA|KT_ECDSA|KT_ED25519|KT_ECDSA_SK|KT_ED25519_SK;
+int get_keytypes = KT_RSA|KT_ECDSA|KT_ED25519|KT_ECDSA_SK|KT_ED25519_SK
+#ifdef OPENSSL_HAS_MLDSA
+    |KT_MLDSA44|KT_MLDSA65|KT_MLDSA87
+#endif
+    ;
 
 int hash_hosts = 0;		/* Hash hostname on output */
 
@@ -276,6 +289,20 @@ keygrab_ssh2(con *c)
 		    "sk-ssh-ed25519-cert-v01@openssh.com" :
 		    "sk-ssh-ed25519@openssh.com";
 		break;
+#ifdef OPENSSL_HAS_MLDSA
+	case KT_MLDSA44:
+		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = get_cert ?
+		    "ssh-mldsa-44-cert-v01@openssh.com" : "ssh-mldsa-44";
+		break;
+	case KT_MLDSA65:
+		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = get_cert ?
+		    "ssh-mldsa-65-cert-v01@openssh.com" : "ssh-mldsa-65";
+		break;
+	case KT_MLDSA87:
+		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = get_cert ?
+		    "ssh-mldsa-87-cert-v01@openssh.com" : "ssh-mldsa-87";
+		break;
+#endif
 	default:
 		fatal("unknown key type %d", c->c_keytype);
 		break;
@@ -756,6 +783,17 @@ main(int argc, char **argv)
 				case KEY_ECDSA_SK:
 					get_keytypes |= KT_ECDSA_SK;
 					break;
+#ifdef OPENSSL_HAS_MLDSA
+				case KEY_MLDSA44:
+					get_keytypes |= KT_MLDSA44;
+					break;
+				case KEY_MLDSA65:
+					get_keytypes |= KT_MLDSA65;
+					break;
+				case KEY_MLDSA87:
+					get_keytypes |= KT_MLDSA87;
+					break;
+#endif
 				case KEY_UNSPEC:
 				default:
 					fatal("Unknown key type \"%s\"", tname);

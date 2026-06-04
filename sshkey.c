@@ -115,6 +115,14 @@ extern const struct sshkey_impl sshkey_rsa_sha256_impl;
 extern const struct sshkey_impl sshkey_rsa_sha256_cert_impl;
 extern const struct sshkey_impl sshkey_rsa_sha512_impl;
 extern const struct sshkey_impl sshkey_rsa_sha512_cert_impl;
+#ifdef OPENSSL_HAS_MLDSA
+extern const struct sshkey_impl sshkey_mldsa44_impl;
+extern const struct sshkey_impl sshkey_mldsa44_cert_impl;
+extern const struct sshkey_impl sshkey_mldsa65_impl;
+extern const struct sshkey_impl sshkey_mldsa65_cert_impl;
+extern const struct sshkey_impl sshkey_mldsa87_impl;
+extern const struct sshkey_impl sshkey_mldsa87_cert_impl;
+#endif
 #endif /* WITH_OPENSSL */
 
 static int ssh_gss_equal(const struct sshkey *, const struct sshkey *)
@@ -216,6 +224,14 @@ const struct sshkey_impl * const keyimpls[] = {
 	&sshkey_rsa_sha256_cert_impl,
 	&sshkey_rsa_sha512_impl,
 	&sshkey_rsa_sha512_cert_impl,
+#ifdef OPENSSL_HAS_MLDSA
+	&sshkey_mldsa44_impl,
+	&sshkey_mldsa44_cert_impl,
+	&sshkey_mldsa65_impl,
+	&sshkey_mldsa65_cert_impl,
+	&sshkey_mldsa87_impl,
+	&sshkey_mldsa87_cert_impl,
+#endif
 #endif /* WITH_OPENSSL */
 	&sshkey_gss_kex_impl,
 	NULL
@@ -525,6 +541,12 @@ sshkey_type_plain(int type)
 		return KEY_ED25519;
 	case KEY_ED25519_SK_CERT:
 		return KEY_ED25519_SK;
+	case KEY_MLDSA44_CERT:
+		return KEY_MLDSA44;
+	case KEY_MLDSA65_CERT:
+		return KEY_MLDSA65;
+	case KEY_MLDSA87_CERT:
+		return KEY_MLDSA87;
 	default:
 		return type;
 	}
@@ -545,6 +567,12 @@ sshkey_type_certified(int type)
 		return KEY_ED25519_CERT;
 	case KEY_ED25519_SK:
 		return KEY_ED25519_SK_CERT;
+	case KEY_MLDSA44:
+		return KEY_MLDSA44_CERT;
+	case KEY_MLDSA65:
+		return KEY_MLDSA65_CERT;
+	case KEY_MLDSA87:
+		return KEY_MLDSA87_CERT;
 	default:
 		return -1;
 	}
@@ -3445,6 +3473,20 @@ sshkey_private_to_blob_pem_pkcs8(struct sshkey *key, struct sshbuf *buf,
 		}
 		break;
 #endif
+#ifdef OPENSSL_HAS_MLDSA
+	case KEY_MLDSA44:
+	case KEY_MLDSA65:
+	case KEY_MLDSA87:
+		if (format == SSHKEY_PRIVATE_PEM) {
+			r = SSH_ERR_INVALID_FORMAT;
+			goto out;
+		} else {
+			pkey = key->pkey;
+			EVP_PKEY_up_ref(key->pkey);
+			success = 1;
+		}
+		break;
+#endif
 	default:
 		success = 0;
 		break;
@@ -3491,6 +3533,14 @@ sshkey_private_to_fileblob(struct sshkey *key, struct sshbuf *blob,
 	case KEY_ECDSA:
 	case KEY_RSA:
 	case KEY_ED25519:
+#ifdef OPENSSL_HAS_MLDSA
+	case KEY_MLDSA44:
+	case KEY_MLDSA65:
+	case KEY_MLDSA87:
+	case KEY_MLDSA44_CERT:
+	case KEY_MLDSA65_CERT:
+	case KEY_MLDSA87_CERT:
+#endif
 		break; /* see below */
 #else /* WITH_OPENSSL */
 	case KEY_ED25519:
@@ -3728,6 +3778,36 @@ sshkey_parse_private_pem_fileblob(struct sshbuf *blob, int type,
 		sshbuf_dump_data(prv->ed25519_sk, ED25519_SK_SZ, stderr);
 #endif
 #endif /* OPENSSL_HAS_ED25519 */
+#ifdef OPENSSL_HAS_MLDSA
+	} else if (EVP_PKEY_get0_type_name(pk) != NULL &&
+	    strncmp(EVP_PKEY_get0_type_name(pk), "ML-DSA-", 7) == 0 &&
+	    (type == KEY_UNSPEC || type == KEY_MLDSA44 ||
+	    type == KEY_MLDSA65 || type == KEY_MLDSA87)) {
+		const char *pkey_type = EVP_PKEY_get0_type_name(pk);
+		int ktype;
+
+		if (strcmp(pkey_type, "ML-DSA-44") == 0)
+			ktype = KEY_MLDSA44;
+		else if (strcmp(pkey_type, "ML-DSA-65") == 0)
+			ktype = KEY_MLDSA65;
+		else if (strcmp(pkey_type, "ML-DSA-87") == 0)
+			ktype = KEY_MLDSA87;
+		else {
+			r = SSH_ERR_INVALID_FORMAT;
+			goto out;
+		}
+		if (type != KEY_UNSPEC && type != ktype) {
+			r = SSH_ERR_KEY_TYPE_MISMATCH;
+			goto out;
+		}
+		if ((prv = sshkey_new(KEY_UNSPEC)) == NULL) {
+			r = SSH_ERR_ALLOC_FAIL;
+			goto out;
+		}
+		prv->type = ktype;
+		EVP_PKEY_up_ref(pk);
+		prv->pkey = pk;
+#endif /* OPENSSL_HAS_MLDSA */
 	} else {
 		r = SSH_ERR_INVALID_FORMAT;
 		goto out;

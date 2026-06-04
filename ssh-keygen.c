@@ -279,6 +279,17 @@ ask_filename(struct passwd *pw, const char *prompt)
 		case KEY_ED25519_SK_CERT:
 			name = _PATH_SSH_CLIENT_ID_ED25519_SK;
 			break;
+#ifdef OPENSSL_HAS_MLDSA
+		case KEY_MLDSA44:
+			name = _PATH_SSH_CLIENT_ID_MLDSA44;
+			break;
+		case KEY_MLDSA65:
+			name = _PATH_SSH_CLIENT_ID_MLDSA65;
+			break;
+		case KEY_MLDSA87:
+			name = _PATH_SSH_CLIENT_ID_MLDSA87;
+			break;
+#endif
 		default:
 			fatal("bad key type");
 		}
@@ -1024,6 +1035,11 @@ do_gen_all_hostkeys(struct passwd *pw)
 #endif /* OPENSSL_HAS_ECC */
 #endif /* WITH_OPENSSL */
 		{ "ed25519", "ED25519",_PATH_HOST_ED25519_KEY_FILE },
+#ifdef OPENSSL_HAS_MLDSA
+		{ "mldsa44", "MLDSA44",_PATH_HOST_MLDSA44_KEY_FILE },
+		{ "mldsa65", "MLDSA65",_PATH_HOST_MLDSA65_KEY_FILE },
+		{ "mldsa87", "MLDSA87",_PATH_HOST_MLDSA87_KEY_FILE },
+#endif
 		{ NULL, NULL, NULL }
 	};
 

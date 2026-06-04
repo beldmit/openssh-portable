@@ -107,7 +107,7 @@ grep -vi 'globalknownhostsfile' $OBJ/ssh_proxy.orig > $OBJ/ssh_proxy
 echo "UpdateHostkeys=yes" >> $OBJ/ssh_proxy
 echo "GlobalKnownHostsFile=none" >> $OBJ/ssh_proxy
 
-for k in $SSH_KEYTYPES ; do
+for k in $SSH_ACCEPTED_KEYTYPES ; do
 	verbose "Addkey type $k"
 	echo "Hostkey $OBJ/agent-key.${k}" >> $OBJ/sshd_proxy
 

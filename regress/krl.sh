@@ -11,6 +11,7 @@ for t in $SSH_KEYTYPES; do
 	case "$t" in
 		ecdsa*)		ktype2=ecdsa ;;
 		ssh-rsa)	ktype3=rsa ;;
+		ssh-mldsa-44)	ktype4=mldsa-44 ;;
 		sk-ssh-ed25519@openssh.com)		ktype5=ed25519-sk ;;
 		sk-ecdsa-sha2-nistp256@openssh.com)	ktype6=ecdsa-sk ;;
 	esac
