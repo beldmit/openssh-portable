@@ -13,10 +13,11 @@ mv $OBJ/ssh_proxy $OBJ/ssh_proxy.orig
 
 ktype1=ed25519; ktype2=ed25519; ktype3=ed25519;
 ktype4=ed25519; ktype5=ed25519; ktype6=ed25519;
-for t in $SSH_KEYTYPES ; do 
+for t in $SSH_KEYTYPES ; do
 	case "$t" in
 		ssh-rsa)	ktype2=rsa ;;
 		ecdsa*)		ktype3=ecdsa ;;  # unused
+		ssh-mldsa-44)	ktype4=mldsa-44 ;;
 		sk-ssh-ed25519@openssh.com)		ktype5=ed25519-sk ;;
 		sk-ecdsa-sha2-nistp256@openssh.com)	ktype6=ecdsa-sk ;;
 	esac
@@ -77,6 +78,9 @@ keytype() {
 		rsa)		printf "rsa-sha2-256,rsa-sha2-512,ssh-rsa" ;;
 		sk-ecdsa)	printf "sk-ecdsa-*" ;;
 		sk-ssh-ed25519)	printf "sk-ssh-ed25519-*" ;;
+		mldsa-44)	printf "ssh-mldsa-44" ;;
+		mldsa-65)	printf "ssh-mldsa-65" ;;
+		mldsa-87)	printf "ssh-mldsa-87" ;;
 	esac
 }
 
