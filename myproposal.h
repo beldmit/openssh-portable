@@ -60,7 +60,13 @@
 	"sk-ecdsa-sha2-nistp256@openssh.com," \
 	"webauthn-sk-ecdsa-sha2-nistp256@openssh.com," \
 	"rsa-sha2-512," \
-	"rsa-sha2-256"
+	"rsa-sha2-256," \
+	"ssh-mldsa-44-cert-v01@openssh.com," \
+	"ssh-mldsa-65-cert-v01@openssh.com," \
+	"ssh-mldsa-87-cert-v01@openssh.com," \
+	"ssh-mldsa-44," \
+	"ssh-mldsa-65," \
+	"ssh-mldsa-87"
 
 #define	KEX_FIPS_PK_ALG	\
 	"ecdsa-sha2-nistp256-cert-v01@openssh.com," \
@@ -72,7 +78,13 @@
 	"ecdsa-sha2-nistp384," \
 	"ecdsa-sha2-nistp521," \
 	"rsa-sha2-512," \
-	"rsa-sha2-256"
+	"rsa-sha2-256," \
+	"ssh-mldsa-44-cert-v01@openssh.com," \
+	"ssh-mldsa-65-cert-v01@openssh.com," \
+	"ssh-mldsa-87-cert-v01@openssh.com," \
+	"ssh-mldsa-44," \
+	"ssh-mldsa-65," \
+	"ssh-mldsa-87"
 
 #define	KEX_SERVER_ENCRYPT \
 	"chacha20-poly1305@openssh.com," \

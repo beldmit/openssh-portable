@@ -1682,6 +1682,11 @@ main(int ac, char **av)
 		case KEY_MLDSA44_ED25519:
 		case KEY_ECDSA_SK:
 		case KEY_ED25519_SK:
+#ifdef OPENSSL_HAS_MLDSA
+		case KEY_MLDSA44:
+		case KEY_MLDSA65:
+		case KEY_MLDSA87:
+#endif
 			if (have_agent || key != NULL)
 				sensitive_data.have_ssh2_key = 1;
 			break;
