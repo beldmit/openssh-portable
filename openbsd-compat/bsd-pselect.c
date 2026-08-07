@@ -85,13 +85,13 @@ pselect_notify_setup(void)
 static void
 pselect_notify_parent(void)
 {
-	if (notify_pipe[1] != -1)
+	if (notify_pipe[1] >= 0)
 		(void)write(notify_pipe[1], "", 1);
 }
 static void
 pselect_notify_prepare(fd_set *readset)
 {
-	if (notify_pipe[0] != -1)
+	if (notify_pipe[0] >= 0)
 		FD_SET(notify_pipe[0], readset);
 }
 static void
@@ -99,8 +99,8 @@ pselect_notify_done(fd_set *readset)
 {
 	char c;
 
-	if (notify_pipe[0] != -1 && FD_ISSET(notify_pipe[0], readset)) {
-		while (read(notify_pipe[0], &c, 1) != -1)
+	if (notify_pipe[0] >= 0 && FD_ISSET(notify_pipe[0], readset)) {
+		while (read(notify_pipe[0], &c, 1) >= 0)
 			debug2_f("reading");
 		FD_CLR(notify_pipe[0], readset);
 	}
