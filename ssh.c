@@ -2372,7 +2372,8 @@ ssh_session2(struct ssh *ssh, const struct ssh_conn_info *cinfo)
 #ifdef ENABLE_PKCS11
 static void
 load_pkcs11_identity(char *pkcs11_uri, char *identity_files[],
-    struct sshkey *identity_keys[], int *n_ids)
+    struct sshkey *identity_keys[], int *n_ids,
+    int identity_file_userprovided[], int userprovided)
 {
 	int nkeys, i;
 	struct sshkey **keys;
@@ -2399,6 +2400,7 @@ load_pkcs11_identity(char *pkcs11_uri, char *identity_files[],
 			}
 			identity_keys[*n_ids] = keys[i];
 			identity_files[*n_ids] = pkcs11_uri_get(uri);
+			identity_file_userprovided[*n_ids] = userprovided;
 			(*n_ids)++;
 		}
 		free(keys);
@@ -2449,7 +2451,7 @@ load_public_identity_files(const struct ssh_conn_info *cinfo)
 
 		/* Add it as any other IdentityFile */
 		cp = pkcs11_uri_get(uri);
-		add_identity_file(&options, NULL, cp, 1);
+		add_identity_file(&options, NULL, cp, 0);
 		free(cp);
 
 		pkcs11_uri_cleanup(uri);
@@ -2468,7 +2470,9 @@ load_public_identity_files(const struct ssh_conn_info *cinfo)
 		    strncmp(name, PKCS11_URI_SCHEME,
 		    strlen(PKCS11_URI_SCHEME)) == 0) {
 			load_pkcs11_identity(name, identity_files,
-			    identity_keys, &n_ids);
+			    identity_keys, &n_ids,
+			    identity_file_userprovided,
+			    options.identity_file_userprovided[i]);
 			free(options.identity_files[i]);
 			continue;
 		}

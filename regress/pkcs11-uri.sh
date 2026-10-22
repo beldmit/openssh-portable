@@ -407,5 +407,41 @@ else
 	${SSHAGENT} -k > /dev/null
 fi
 
+trace "Test IdentitiesOnly=yes with PKCS#11 URI"
+# Set RSA key as authorized
+grep "RSA" $OBJ/token_keys > $OBJ/authorized_keys_$USER
+
+trace "  (With IdentitiesOnly=yes, wrong key should fail)"
+# Configure to use ECDSA key with IdentitiesOnly, but RSA is authorized
+# Use ssh_proxy which already has BatchMode and IdentityFile entries removed
+cat > $OBJ/ssh_proxy_identonly << EOF
+IdentitiesOnly yes
+IdentityFile "pkcs11:id=%${ID2}?module-path=${TEST_SSH_PKCS11}"
+EOF
+cat $OBJ/ssh_proxy >> $OBJ/ssh_proxy_identonly
+
+echo ${TEST_SSH_PIN} | notty ${SSH} -F $OBJ/ssh_proxy_identonly somehost exit 5
+r=$?
+if [ $r -eq 5 ]; then
+	fail "FAIL: ssh with IdentitiesOnly=yes used wrong key (should fail)"
+fi
+
+trace "  (With IdentitiesOnly=yes, correct key should succeed)"
+# Configure to use RSA key with IdentitiesOnly, RSA is authorized
+cat > $OBJ/ssh_proxy_identonly << EOF
+IdentitiesOnly yes
+IdentityFile "pkcs11:id=%${ID1}?module-path=${TEST_SSH_PKCS11}"
+EOF
+cat $OBJ/ssh_proxy >> $OBJ/ssh_proxy_identonly
+
+echo ${TEST_SSH_PIN} | notty ${SSH} -F $OBJ/ssh_proxy_identonly somehost exit 5
+r=$?
+if [ $r -ne 5 ]; then
+	fail "FAIL: ssh with IdentitiesOnly=yes and correct key failed (exit code $r)"
+fi
+
+# Cleanup
+rm -f $OBJ/ssh_proxy_identonly
+
 # Restore original ssh_proxy
 mv $OBJ/ssh_proxy_bak $OBJ/ssh_proxy
