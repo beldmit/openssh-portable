@@ -63,9 +63,9 @@
 	"rsa-sha2-512," \
 	"rsa-sha2-256," \
 	"ssh-mldsa44-ed25519," \
-	"ssh-mldsa-44-cert-v01@openssh.com," \
-	"ssh-mldsa-65-cert-v01@openssh.com," \
-	"ssh-mldsa-87-cert-v01@openssh.com," \
+	"ssh-mldsa-44-cert-v01@golang.org," \
+	"ssh-mldsa-65-cert-v01@golang.org," \
+	"ssh-mldsa-87-cert-v01@golang.org," \
 	"ssh-mldsa-44," \
 	"ssh-mldsa-65," \
 	"ssh-mldsa-87"
@@ -81,9 +81,9 @@
 	"ecdsa-sha2-nistp521," \
 	"rsa-sha2-512," \
 	"rsa-sha2-256," \
-	"ssh-mldsa-44-cert-v01@openssh.com," \
-	"ssh-mldsa-65-cert-v01@openssh.com," \
-	"ssh-mldsa-87-cert-v01@openssh.com," \
+	"ssh-mldsa-44-cert-v01@golang.org," \
+	"ssh-mldsa-65-cert-v01@golang.org," \
+	"ssh-mldsa-87-cert-v01@golang.org," \
 	"ssh-mldsa-44," \
 	"ssh-mldsa-65," \
 	"ssh-mldsa-87"

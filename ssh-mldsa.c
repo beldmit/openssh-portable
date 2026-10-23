@@ -524,8 +524,8 @@ const struct sshkey_impl sshkey_mldsa87_impl = {
 };
 
 const struct sshkey_impl sshkey_mldsa44_cert_impl = {
-	/* .name = */		"ssh-mldsa-44-cert-v01@openssh.com",
-	/* .shortname = */	"MLDSA-44-CERT",
+	/* .name = */		"ssh-mldsa-44-cert-v01@golang.org",
+	/* .shortname = */	"MLDSA44-CERT",
 	/* .sigalg = */		NULL,
 	/* .type = */		KEY_MLDSA44_CERT,
 	/* .nid = */		0,
@@ -536,8 +536,8 @@ const struct sshkey_impl sshkey_mldsa44_cert_impl = {
 };
 
 const struct sshkey_impl sshkey_mldsa65_cert_impl = {
-	/* .name = */		"ssh-mldsa-65-cert-v01@openssh.com",
-	/* .shortname = */	"MLDSA-65-CERT",
+	/* .name = */		"ssh-mldsa-65-cert-v01@golang.org",
+	/* .shortname = */	"MLDSA65-CERT",
 	/* .sigalg = */		NULL,
 	/* .type = */		KEY_MLDSA65_CERT,
 	/* .nid = */		0,
@@ -548,8 +548,8 @@ const struct sshkey_impl sshkey_mldsa65_cert_impl = {
 };
 
 const struct sshkey_impl sshkey_mldsa87_cert_impl = {
-	/* .name = */		"ssh-mldsa-87-cert-v01@openssh.com",
-	/* .shortname = */	"MLDSA-87-CERT",
+	/* .name = */		"ssh-mldsa-87-cert-v01@golang.org",
+	/* .shortname = */	"MLDSA87-CERT",
 	/* .sigalg = */		NULL,
 	/* .type = */		KEY_MLDSA87_CERT,
 	/* .nid = */		0,
