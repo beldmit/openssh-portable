@@ -301,15 +301,15 @@ keygrab_ssh2(con *c)
 #ifdef OPENSSL_HAS_MLDSA
 	case KT_MLDSA44:
 		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = get_cert ?
-		    "ssh-mldsa-44-cert-v01@openssh.com" : "ssh-mldsa-44";
+		    "ssh-mldsa-44-cert-v01@golang.org" : "ssh-mldsa-44";
 		break;
 	case KT_MLDSA65:
 		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = get_cert ?
-		    "ssh-mldsa-65-cert-v01@openssh.com" : "ssh-mldsa-65";
+		    "ssh-mldsa-65-cert-v01@golang.org" : "ssh-mldsa-65";
 		break;
 	case KT_MLDSA87:
 		myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = get_cert ?
-		    "ssh-mldsa-87-cert-v01@openssh.com" : "ssh-mldsa-87";
+		    "ssh-mldsa-87-cert-v01@golang.org" : "ssh-mldsa-87";
 		break;
 #endif
 	default:
