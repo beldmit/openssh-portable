@@ -1459,7 +1459,7 @@ process_server_config_line_depth(ServerOptions *options, char *line,
 	case sPubkeyAuthOptions:
 		intptr = &options->pubkey_auth_options;
 		value = 0;
-		value2 = -1;
+		value2 = DEFAULT_AUTH_FAIL_MAX;
 		while ((arg = argv_next(&ac, &av)) != NULL) {
 			if (strcasecmp(arg, "none") == 0)
 				continue;
